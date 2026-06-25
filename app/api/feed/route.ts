@@ -5,6 +5,10 @@ import type { Article } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const revalidate = 60;
+// 서울 리전에서 실행 — 한국 언론사 피드(예: 한국경제)가 해외 IP를 차단/지연하므로
+// 한국 IP에서 요청해야 안정적. 글로벌 피드는 CDN이라 영향 없음.
+export const preferredRegion = "icn1";
+export const maxDuration = 30;
 
 export async function GET(req: NextRequest) {
   const param = req.nextUrl.searchParams.get("sources");
