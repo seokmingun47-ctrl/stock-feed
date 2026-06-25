@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SOURCES, sourcesByIds } from "@/lib/sources";
+import { SOURCES, SOURCE_MAP, sourcesByIds } from "@/lib/sources";
 import { fetchSource } from "@/lib/rss";
+import { translateMany } from "@/lib/translate";
 import type { Article } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -31,11 +32,30 @@ export async function GET(req: NextRequest) {
   }
   articles.sort((a, b) => b.publishedAt - a.publishedAt);
 
+  // 상한을 넉넉히 — 단일 소스 필터 시 그 소스 기사가 누락되지 않도록.
+  const top = articles.slice(0, 500);
+
+  // lang=ko 이면 해외(영문) 기사의 제목·요약을 한국어로 번역.
+  if (req.nextUrl.searchParams.get("lang") === "ko") {
+    const globals = top.filter(
+      (a) => SOURCE_MAP[a.sourceId]?.region === "global",
+    );
+    if (globals.length) {
+      const texts: string[] = [];
+      for (const a of globals) texts.push(a.title, a.summary || "");
+      const tr = await translateMany(texts);
+      let i = 0;
+      for (const a of globals) {
+        a.title = tr[i++] || a.title;
+        a.summary = tr[i++] || a.summary;
+      }
+    }
+  }
+
   return NextResponse.json(
     {
       count: articles.length,
-      // 상한을 넉넉히 — 단일 소스 필터 시 그 소스 기사가 누락되지 않도록.
-      articles: articles.slice(0, 500),
+      articles: top,
       okSources: sources
         .filter((s, i) => results[i].length > 0)
         .map((s) => s.id),

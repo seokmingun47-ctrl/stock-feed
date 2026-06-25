@@ -10,13 +10,17 @@ import { timeAgo } from "@/lib/format";
 
 const STORE_KEY = "stockfeed:followed";
 
+const TR_KEY = "stockfeed:translate";
+
 export default function Feed({
   nickname,
   initialFollowed,
+  initialTranslate,
   onLogout,
 }: {
   nickname: string;
   initialFollowed: string[];
+  initialTranslate: boolean;
   onLogout: () => void;
 }) {
   const [followed, setFollowed] = useState<string[]>(initialFollowed);
@@ -27,6 +31,8 @@ export default function Feed({
   const [error, setError] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(0);
   const [manage, setManage] = useState(false);
+  const [translate, setTranslate] = useState(initialTranslate);
+  const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
 
   const fetchFeed = useCallback(async (ids: string[]) => {
@@ -39,7 +45,8 @@ export default function Feed({
     setLoading(true);
     setError(false);
     try {
-      const res = await fetch(`/api/feed?sources=${ids.join(",")}`, {
+      const lang = trRef.current ? "&lang=ko" : "";
+      const res = await fetch(`/api/feed?sources=${ids.join(",")}${lang}`, {
         cache: "no-store",
       });
       if (!res.ok) throw new Error("bad");
@@ -77,6 +84,18 @@ export default function Feed({
     return () => clearInterval(t);
   }, [followed, fetchFeed]);
 
+  const toggleTranslate = () => {
+    const v = !translate;
+    setTranslate(v);
+    trRef.current = v;
+    try {
+      localStorage.setItem(TR_KEY, v ? "1" : "0");
+    } catch {
+      /* noop */
+    }
+    fetchFeed(followed);
+  };
+
   const followedSources = useMemo(
     () => followed.map((id) => SOURCE_MAP[id]).filter(Boolean),
     [followed],
@@ -104,6 +123,19 @@ export default function Feed({
             </h1>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={toggleTranslate}
+              aria-label="해외 뉴스 한국어 번역"
+              title={translate ? "번역 켜짐 (해외 뉴스 한국어)" : "번역 꺼짐 (원문)"}
+              className={`flex h-8 items-center gap-1 rounded-full px-2.5 text-[13px] font-bold transition-colors ${
+                translate
+                  ? "bg-accent text-white"
+                  : "bg-bg-soft text-muted"
+              }`}
+            >
+              <span>한</span>
+              <span className="text-[10px] opacity-80">A문</span>
+            </button>
             <button
               onClick={() => fetchFeed(followed)}
               aria-label="새로고침"
