@@ -1,0 +1,297 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SOURCES, SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
+import type { Article } from "@/lib/types";
+import SourceAvatar from "@/components/SourceAvatar";
+import ArticleCard from "@/components/ArticleCard";
+import ManageSheet from "@/components/ManageSheet";
+import { timeAgo } from "@/lib/format";
+
+const STORE_KEY = "stockfeed:followed";
+
+export default function Feed({
+  nickname,
+  initialFollowed,
+  onLogout,
+}: {
+  nickname: string;
+  initialFollowed: string[];
+  onLogout: () => void;
+}) {
+  const [followed, setFollowed] = useState<string[]>(initialFollowed);
+  const [active, setActive] = useState<string>("all");
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [okSources, setOkSources] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(0);
+  const [manage, setManage] = useState(false);
+  const first = useRef(true);
+
+  const fetchFeed = useCallback(async (ids: string[]) => {
+    if (!ids.length) {
+      setArticles([]);
+      setOkSources([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/feed?sources=${ids.join(",")}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("bad");
+      const data = await res.json();
+      setArticles(data.articles ?? []);
+      setOkSources(data.okSources ?? []);
+      setUpdatedAt(Date.now());
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 최초 로드
+  useEffect(() => {
+    fetchFeed(followed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 팔로우 변경 시 저장 + 재조회 (최초 마운트는 건너뜀)
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    localStorage.setItem(STORE_KEY, JSON.stringify(followed));
+    if (active !== "all" && !followed.includes(active)) setActive("all");
+    fetchFeed(followed);
+  }, [followed, fetchFeed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 90초마다 자동 새로고침
+  useEffect(() => {
+    const t = setInterval(() => fetchFeed(followed), 90_000);
+    return () => clearInterval(t);
+  }, [followed, fetchFeed]);
+
+  const followedSources = useMemo(
+    () => followed.map((id) => SOURCE_MAP[id]).filter(Boolean),
+    [followed],
+  );
+
+  const shown = useMemo(
+    () =>
+      (active === "all"
+        ? articles
+        : articles.filter((a) => a.sourceId === active)
+      ).filter((a) => SOURCE_MAP[a.sourceId]), // 알 수 없는 소스 방어
+    [articles, active],
+  );
+
+  return (
+    <div className="mx-auto flex min-h-screen max-w-[600px] flex-col bg-bg">
+      <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
+        <div className="flex items-center justify-between px-4 pb-2 pt-3">
+          <div className="flex items-center gap-2">
+            <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-[15px] font-black text-white">
+              ₩
+            </span>
+            <h1 className="text-[19px] font-extrabold tracking-tight text-text">
+              증권피드
+            </h1>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => fetchFeed(followed)}
+              aria-label="새로고침"
+              className="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-bg-soft"
+            >
+              <RefreshIcon spinning={loading} />
+            </button>
+            <button
+              onClick={() => setManage(true)}
+              aria-label="내 소스 관리"
+              className="grid h-8 w-8 place-items-center rounded-full bg-accent text-[14px] font-bold text-white"
+              title={nickname}
+            >
+              {nickname.slice(0, 1).toUpperCase()}
+            </button>
+          </div>
+        </div>
+
+        <div className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-3 pt-1">
+          <Chip
+            active={active === "all"}
+            onClick={() => setActive("all")}
+            label="전체"
+          >
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-accent to-[#14c38e] text-[18px] font-black text-white">
+              All
+            </span>
+          </Chip>
+
+          {followedSources.map((s) => (
+            <Chip
+              key={s.id}
+              active={active === s.id}
+              onClick={() => setActive(s.id)}
+              label={s.name}
+              dim={okSources.length > 0 && !okSources.includes(s.id)}
+            >
+              <SourceAvatar source={s} size={52} ring={active === s.id} />
+            </Chip>
+          ))}
+
+          <button
+            onClick={() => setManage(true)}
+            className="flex shrink-0 flex-col items-center gap-1.5"
+          >
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full border border-dashed border-border text-[24px] text-muted">
+              +
+            </span>
+            <span className="text-[11px] text-muted">추가</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
+        <span>
+          {active === "all"
+            ? `팔로우 ${followedSources.length}곳 · 통합 피드`
+            : SOURCE_MAP[active]?.name}
+        </span>
+        {updatedAt > 0 && <span>업데이트 {timeAgo(updatedAt)}</span>}
+      </div>
+
+      <main className="flex-1">
+        {loading && articles.length === 0 ? (
+          <SkeletonList />
+        ) : error ? (
+          <EmptyState
+            title="불러오지 못했어요"
+            desc="네트워크를 확인하고 다시 시도해 주세요."
+            action={() => fetchFeed(followed)}
+            actionLabel="다시 시도"
+          />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            title="기사가 없어요"
+            desc="이 소스에서 가져온 기사가 아직 없습니다."
+          />
+        ) : (
+          shown.map((a) => (
+            <ArticleCard key={a.id} article={a} source={SOURCE_MAP[a.sourceId]} />
+          ))
+        )}
+      </main>
+
+      {manage && (
+        <ManageSheet
+          followed={followed}
+          minFollow={MIN_FOLLOW}
+          nickname={nickname}
+          onChange={setFollowed}
+          onClose={() => setManage(false)}
+          onLogout={onLogout}
+        />
+      )}
+    </div>
+  );
+}
+
+function Chip({
+  active,
+  onClick,
+  label,
+  children,
+  dim,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+  dim?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex shrink-0 flex-col items-center gap-1.5"
+      style={{ opacity: dim ? 0.4 : 1 }}
+    >
+      {children}
+      <span
+        className={`max-w-[60px] truncate text-[11px] ${
+          active ? "font-bold text-text" : "text-muted"
+        }`}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function RefreshIcon({ spinning }: { spinning: boolean }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={spinning ? "spin" : ""}
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  );
+}
+
+function SkeletonList() {
+  return (
+    <div>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="border-b border-border px-4 py-4">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="h-7 w-7 rounded-full bg-bg-soft" />
+            <div className="h-3 w-24 rounded bg-bg-soft" />
+          </div>
+          <div className="mb-2 h-4 w-[90%] rounded bg-bg-soft" />
+          <div className="h-3 w-[70%] rounded bg-bg-soft" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({
+  title,
+  desc,
+  action,
+  actionLabel,
+}: {
+  title: string;
+  desc: string;
+  action?: () => void;
+  actionLabel?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center px-8 py-24 text-center">
+      <p className="text-[17px] font-bold text-text">{title}</p>
+      <p className="mt-2 text-[14px] text-muted">{desc}</p>
+      {action && actionLabel && (
+        <button
+          onClick={action}
+          className="mt-5 rounded-full bg-accent px-5 py-2.5 text-[14px] font-semibold text-white"
+        >
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}

@@ -1,65 +1,83 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import { SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
+import Welcome from "@/components/Welcome";
+import Onboarding from "@/components/Onboarding";
+import Feed from "@/components/Feed";
+
+const K_USER = "stockfeed:user";
+const K_ONBOARDED = "stockfeed:onboarded";
+const K_FOLLOWED = "stockfeed:followed";
+
+type Screen = "loading" | "welcome" | "onboarding" | "feed";
 
 export default function Home() {
+  const [screen, setScreen] = useState<Screen>("loading");
+  const [nickname, setNickname] = useState("");
+  const [followed, setFollowed] = useState<string[]>([]);
+
+  // 첫 진입: localStorage로 어느 화면인지 결정
+  useEffect(() => {
+    try {
+      const user = localStorage.getItem(K_USER);
+      const onboarded = localStorage.getItem(K_ONBOARDED) === "1";
+      const ids = JSON.parse(localStorage.getItem(K_FOLLOWED) || "[]").filter(
+        (id: string) => SOURCE_MAP[id],
+      );
+      if (user && onboarded && ids.length >= MIN_FOLLOW) {
+        setNickname(user);
+        setFollowed(ids);
+        setScreen("feed");
+        return;
+      }
+      if (user) {
+        setNickname(user);
+        setScreen("onboarding");
+        return;
+      }
+    } catch {
+      /* noop */
+    }
+    setScreen("welcome");
+  }, []);
+
+  const handleStart = (nick: string) => {
+    localStorage.setItem(K_USER, nick);
+    setNickname(nick);
+    setScreen("onboarding");
+  };
+
+  const handleOnboardDone = (ids: string[]) => {
+    localStorage.setItem(K_FOLLOWED, JSON.stringify(ids));
+    localStorage.setItem(K_ONBOARDED, "1");
+    setFollowed(ids);
+    setScreen("feed");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(K_USER);
+    localStorage.removeItem(K_ONBOARDED);
+    localStorage.removeItem(K_FOLLOWED);
+    setNickname("");
+    setFollowed([]);
+    setScreen("welcome");
+  };
+
+  if (screen === "loading") {
+    return <div className="min-h-screen bg-bg" />;
+  }
+  if (screen === "welcome") {
+    return <Welcome onStart={handleStart} />;
+  }
+  if (screen === "onboarding") {
+    return <Onboarding nickname={nickname} onDone={handleOnboardDone} />;
+  }
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <Feed
+      nickname={nickname}
+      initialFollowed={followed}
+      onLogout={handleLogout}
+    />
   );
 }
