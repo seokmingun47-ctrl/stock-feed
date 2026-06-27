@@ -40,9 +40,9 @@ export default function Welcome({
       <div className="pointer-events-none absolute -right-32 top-1/4 h-96 w-96 rounded-full bg-indigo-300/30 blur-3xl" />
       <div className="pointer-events-none absolute -left-24 bottom-0 h-80 w-80 rounded-full bg-pink-300/30 blur-3xl" />
 
-      <div className="relative mx-auto grid min-h-screen max-w-6xl grid-cols-1 md:grid-cols-2">
-        {/* ── 왼쪽: 브랜딩 + 시작 폼 ── */}
-        <div className="flex flex-col justify-center px-7 py-14 sm:px-12">
+      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col md:grid md:grid-cols-2">
+        {/* ── 브랜딩 + 시작 폼 (모바일: 위 / 데스크톱: 왼쪽) ── */}
+        <div className="flex flex-col justify-start px-7 pb-6 pt-12 sm:px-12 md:justify-center md:py-14">
           <div className="mb-9 flex items-center gap-2.5">
             <LogoMark size={40} />
             <span className="text-[25px] font-extrabold tracking-tight">
@@ -91,9 +91,9 @@ export default function Welcome({
           </p>
         </div>
 
-        {/* ── 오른쪽: 미리보기 피드 (모바일 숨김, 무한 세로 스크롤) ── */}
-        <div className="relative hidden md:block">
-          <div className="pointer-events-none absolute inset-0 flex gap-4 overflow-hidden px-6 [mask-image:linear-gradient(to_bottom,transparent,black_8%,black_92%,transparent)]">
+        {/* ── 미리보기 피드 (모바일: 아래 / 데스크톱: 오른쪽, 무한 세로 스크롤) ── */}
+        <div className="relative min-h-[44vh] flex-1 md:min-h-0">
+          <div className="pointer-events-none absolute inset-0 flex gap-4 overflow-hidden px-6 pb-6 md:pb-0 [mask-image:linear-gradient(to_bottom,transparent,black_8%,black_92%,transparent)]">
             <div className="h-full w-1/2 overflow-hidden">
               {/* 카드 2벌 복제 → -50% 이동 시 끊김 없이 무한 루프
                   (간격은 카드 mb-4로 균일하게 — gap을 쓰면 복제 경계가 어긋남) */}
