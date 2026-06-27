@@ -14,6 +14,12 @@ const PREVIEW: { id: string; text: string; trend?: "up" | "down" }[] = [
   { id: "ft", text: "유가 급락에 정유주 약세 전환", trend: "down" },
   { id: "chosunbiz", text: "비트코인 1억 재돌파, 코인 관련주 강세" },
   { id: "fnnews", text: "외국인·기관 동반 매수에 증시 훈풍" },
+  { id: "nasdaq", text: "테슬라, 로보택시 기대에 7% 급등", trend: "up" },
+  { id: "marketwatch", text: "S&P500 4거래일 연속 상승 마감", trend: "up" },
+  { id: "seekingalpha", text: "고배당 ETF로 자금 유입…배당주 재평가" },
+  { id: "yahoo", text: "애플, 신제품 공개 앞두고 강세", trend: "up" },
+  { id: "fool", text: "AI 반도체株 일제히 신고가 경신", trend: "up" },
+  { id: "businessinsider", text: "원/달러 환율 하락에 수출주 반등", trend: "down" },
 ];
 
 export default function Welcome({
@@ -85,18 +91,24 @@ export default function Welcome({
           </p>
         </div>
 
-        {/* ── 오른쪽: 미리보기 피드 (모바일 숨김) ── */}
+        {/* ── 오른쪽: 미리보기 피드 (모바일 숨김, 무한 세로 스크롤) ── */}
         <div className="relative hidden md:block">
-          <div className="pointer-events-none absolute inset-0 flex gap-4 px-6 py-10 [mask-image:linear-gradient(to_bottom,transparent,black_9%,black_91%,transparent)]">
-            <div className="flex w-1/2 flex-col gap-4">
-              {colA.map((p, i) => (
-                <PreviewCard key={i} post={p} />
-              ))}
+          <div className="pointer-events-none absolute inset-0 flex gap-4 overflow-hidden px-6 [mask-image:linear-gradient(to_bottom,transparent,black_8%,black_92%,transparent)]">
+            <div className="h-full w-1/2 overflow-hidden">
+              {/* 카드 2벌 복제 → -50% 이동 시 끊김 없이 무한 루프
+                  (간격은 카드 mb-4로 균일하게 — gap을 쓰면 복제 경계가 어긋남) */}
+              <div className="marquee-up flex flex-col">
+                {[...colA, ...colA].map((p, i) => (
+                  <PreviewCard key={i} post={p} />
+                ))}
+              </div>
             </div>
-            <div className="mt-12 flex w-1/2 flex-col gap-4">
-              {colB.map((p, i) => (
-                <PreviewCard key={i} post={p} />
-              ))}
+            <div className="h-full w-1/2 overflow-hidden">
+              <div className="marquee-down flex flex-col">
+                {[...colB, ...colB].map((p, i) => (
+                  <PreviewCard key={i} post={p} />
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -113,7 +125,7 @@ function PreviewCard({
   const s = SOURCE_MAP[post.id];
   if (!s) return null;
   return (
-    <div className="rounded-2xl border border-zinc-200/80 bg-white/85 p-3.5 shadow-sm backdrop-blur-sm">
+    <div className="mb-4 rounded-2xl border border-zinc-200/80 bg-white/85 p-3.5 shadow-sm backdrop-blur-sm">
       <div className="flex items-center gap-2">
         <SourceAvatar source={s} size={26} />
         <span className="text-[13px] font-bold text-zinc-900">{s.name}</span>

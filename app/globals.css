@@ -50,3 +50,33 @@ body {
 .spin {
   animation: spin 0.8s linear infinite;
 }
+
+/* 시작 화면 미리보기 피드 무한 세로 스크롤 (마퀴) */
+@keyframes marquee-up {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+@keyframes marquee-down {
+  from {
+    transform: translateY(-50%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.marquee-up {
+  animation: marquee-up 34s linear infinite;
+}
+.marquee-down {
+  animation: marquee-down 40s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-up,
+  .marquee-down {
+    animation: none;
+  }
+}
