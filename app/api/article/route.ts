@@ -5,8 +5,9 @@ export const runtime = "nodejs";
 export const preferredRegion = "icn1";
 export const maxDuration = 30;
 
-// SSRF 방지: 알려진 해외 뉴스 도메인만 허용
+// SSRF 방지: 알려진 뉴스 도메인만 허용
 const ALLOWED = [
+  // 해외
   "investing.com",
   "cnbc.com",
   "bbc.co.uk",
@@ -19,6 +20,12 @@ const ALLOWED = [
   "fool.com",
   "seekingalpha.com",
   "ft.com",
+  // 국내
+  "hankyung.com",
+  "yna.co.kr",
+  "edaily.co.kr",
+  "chosun.com",
+  "fnnews.com",
 ];
 
 function allowed(host: string): boolean {
@@ -46,6 +53,35 @@ function meta(html: string, prop: string): string {
   return m ? decode(m[1]) : "";
 }
 
+const JUNK =
+  /cookie|subscribe|newsletter|sign up|sign in|©|all rights reserved|terms of|privacy policy|무단[ ]?전재|재배포 금지|저작권자|구독하기|기자\s*$|@[\w.-]+\.(?:com|co\.kr)/i;
+
+function clean(t: string): string {
+  return decode(t.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+}
+
+function dedupe(ps: string[]): string[] {
+  const out: string[] = [];
+  for (const p of ps)
+    if (p.length > 30 && !JUNK.test(p) && out[out.length - 1] !== p) out.push(p);
+  return out;
+}
+
+function totalLen(ps: string[]): number {
+  return ps.reduce((a, p) => a + p.length, 0);
+}
+
+// 블록/<br> 단위로 텍스트를 문단으로 쪼갬 (div+<br> 본문용)
+function blockParas(htmlChunk: string): string[] {
+  const lines = htmlChunk
+    .replace(/<(?:script|style)[\s\S]*?<\/(?:script|style)>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|li|h[1-6]|figcaption|blockquote)>/gi, "\n")
+    .split(/\n+/)
+    .map(clean);
+  return dedupe(lines.filter((t) => t.length > 30));
+}
+
 function extractParagraphs(html: string): string[] {
   // 1) JSON-LD articleBody 우선
   const ld = [...html.matchAll(
@@ -65,21 +101,21 @@ function extractParagraphs(html: string): string[] {
     }
   }
   if (best.length > 200) {
-    return best
-      .split(/\n+/)
-      .map((p) => p.trim())
-      .filter((p) => p.length > 40);
+    return dedupe(best.split(/\n+/).map((p) => p.trim()));
   }
 
-  // 2) <p> 태그 추출 폴백
-  const ps = [...html.matchAll(/<p[ >][\s\S]*?<\/p>/gi)]
-    .map((x) => decode(x[0].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim())
-    .filter((t) => t.length > 40)
-    .filter((t) => !/cookie|subscribe|newsletter|sign up|sign in|©|all rights reserved|terms of|privacy policy/i.test(t));
-  // 연속 중복 제거
-  const out: string[] = [];
-  for (const p of ps) if (out[out.length - 1] !== p) out.push(p);
-  return out;
+  // 2) <p> 태그 추출
+  const pPs = dedupe(
+    [...html.matchAll(/<p[ >][\s\S]*?<\/p>/gi)].map((x) => clean(x[0])),
+  );
+
+  // 3) itemprop=articleBody 컨테이너의 블록/<br> 텍스트 (edaily 등 div 본문)
+  let containerPs: string[] = [];
+  const idx = html.search(/itemprop=["']articleBody["']/i);
+  if (idx >= 0) containerPs = blockParas(html.slice(idx, idx + 40000));
+
+  // 더 많은 본문을 건진 쪽 채택
+  return totalLen(containerPs) > totalLen(pPs) ? containerPs : pPs;
 }
 
 export async function GET(req: NextRequest) {
@@ -139,17 +175,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: "no-content", status });
   }
 
-  // 제목 + 문단 한국어 번역
-  const tr = await translateMany([titleEn, ...paras]);
-  const titleKo = tr[0] || titleEn;
-  const bodyKo = tr.slice(1);
+  // lang=ko 일 때만 번역(해외 기사). 국내 기사는 원문 한국어 그대로.
+  let title = titleEn;
+  let body = paras;
+  if (req.nextUrl.searchParams.get("lang") === "ko") {
+    const tr = await translateMany([titleEn, ...paras]);
+    title = tr[0] || titleEn;
+    body = tr.slice(1);
+  }
 
   return NextResponse.json(
     {
       ok: true,
-      title: titleKo,
+      title,
       image,
-      paragraphs: bodyKo,
+      paragraphs: body,
       original: u.toString(),
     },
     { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600" } },

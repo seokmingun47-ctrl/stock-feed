@@ -19,7 +19,7 @@ export default function ArticleCard({
   const [imgOk, setImgOk] = useState(true);
   const showImg = article.image && imgOk;
 
-  // 번역 켜짐 + 해외 기사면 탭 시 앱 안 리더(한국어 본문)로 열기
+  // 해외 기사 + 번역 켜짐이면 "한국어로 보기" 뱃지 표시
   const viaTranslate = translate && source.region === "global";
 
   return (
@@ -27,14 +27,11 @@ export default function ArticleCard({
       href={article.link}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={
-        viaTranslate
-          ? (e) => {
-              e.preventDefault();
-              onRead(article);
-            }
-          : undefined
-      }
+      onClick={(e) => {
+        // 모든 기사를 앱 안 리더로 부드럽게 열기 (사이트 이동 X)
+        e.preventDefault();
+        onRead(article);
+      }}
       className="block border-b border-border px-4 py-3.5 transition-colors active:bg-bg-soft hover:bg-bg-soft"
     >
       <div className="flex items-center gap-2">

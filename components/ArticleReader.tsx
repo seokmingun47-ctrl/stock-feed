@@ -16,25 +16,31 @@ interface ReaderData {
 export default function ArticleReader({
   article,
   source,
+  translate,
   onClose,
 }: {
   article: Article;
   source: Source;
+  translate: boolean;
   onClose: () => void;
 }) {
   const [data, setData] = useState<ReaderData | null>(null);
   const [imgOk, setImgOk] = useState(true);
 
+  // 해외 기사 + 번역 켜짐일 때만 한국어로 번역
+  const translated = translate && source.region === "global";
+
   useEffect(() => {
     const c = new AbortController();
-    fetch(`/api/article?url=${encodeURIComponent(article.link)}`, {
+    const lang = translated ? "&lang=ko" : "";
+    fetch(`/api/article?url=${encodeURIComponent(article.link)}${lang}`, {
       signal: c.signal,
     })
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => setData({ ok: false, reason: "error" }));
     return () => c.abort();
-  }, [article.link]);
+  }, [article.link, translated]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -52,7 +58,7 @@ export default function ArticleReader({
   const showImg = image && imgOk;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-bg">
+    <div className="reader-enter fixed inset-0 z-50 overflow-y-auto bg-bg">
       <div className="mx-auto max-w-[600px]">
         {/* 헤더 */}
         <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-bg/95 px-3 py-2.5 backdrop-blur">
@@ -88,11 +94,13 @@ export default function ArticleReader({
           <h1 className="text-[22px] font-extrabold leading-snug text-text">
             {title}
           </h1>
-          <div className="mt-2 flex items-center gap-1.5 text-[12px] text-accent">
-            <span className="rounded-full bg-accent/15 px-2 py-0.5 font-semibold">
-              한국어 번역
-            </span>
-          </div>
+          {translated && (
+            <div className="mt-2 flex items-center gap-1.5 text-[12px] text-accent">
+              <span className="rounded-full bg-accent/15 px-2 py-0.5 font-semibold">
+                한국어 번역
+              </span>
+            </div>
+          )}
 
           {showImg && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -106,7 +114,13 @@ export default function ArticleReader({
 
           {/* 본문 */}
           {!data ? (
-            <Loading />
+            <Loading
+              message={
+                translated
+                  ? "본문을 가져와 한국어로 번역하는 중…"
+                  : "본문을 가져오는 중…"
+              }
+            />
           ) : data.ok ? (
             <div className="mt-5 space-y-4">
               {data.paragraphs!.map((p, i) => (
@@ -114,9 +128,11 @@ export default function ArticleReader({
                   {p}
                 </p>
               ))}
-              <p className="pt-2 text-[12px] text-muted">
-                자동 번역된 내용으로, 원문과 다를 수 있어요.
-              </p>
+              {translated && (
+                <p className="pt-2 text-[12px] text-muted">
+                  자동 번역된 내용으로, 원문과 다를 수 있어요.
+                </p>
+              )}
             </div>
           ) : (
             <Fallback summary={article.summary} link={article.link} />
@@ -127,13 +143,13 @@ export default function ArticleReader({
   );
 }
 
-function Loading() {
+function Loading({ message }: { message: string }) {
   return (
     <div className="mt-10 flex flex-col items-center gap-3 py-10 text-muted">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="spin">
         <path d="M21 12a9 9 0 1 1-2.64-6.36" />
       </svg>
-      <span className="text-[14px]">본문을 가져와 한국어로 번역하는 중…</span>
+      <span className="text-[14px]">{message}</span>
     </div>
   );
 }

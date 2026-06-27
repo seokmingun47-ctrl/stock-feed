@@ -80,3 +80,22 @@ body {
     animation: none;
   }
 }
+
+/* 기사 리더 슬라이드 인 (오른쪽에서 부드럽게 들어옴) */
+@keyframes reader-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.reader-enter {
+  animation: reader-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-enter {
+    animation: none;
+  }
+}

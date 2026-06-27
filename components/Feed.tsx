@@ -243,6 +243,7 @@ export default function Feed({
         <ArticleReader
           article={reader}
           source={SOURCE_MAP[reader.sourceId]}
+          translate={translate}
           onClose={() => setReader(null)}
         />
       )}
