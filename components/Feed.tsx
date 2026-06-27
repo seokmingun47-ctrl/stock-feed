@@ -246,7 +246,7 @@ export default function Feed({
         {updatedAt > 0 && <span>업데이트 {timeAgo(updatedAt)}</span>}
       </div>
 
-      <main className="flex-1">
+      <main className="flex-1 pb-16">
         {loading && articles.length === 0 ? (
           <SkeletonList />
         ) : error ? (

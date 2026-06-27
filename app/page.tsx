@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
 import Welcome from "@/components/Welcome";
 import Onboarding from "@/components/Onboarding";
-import Feed from "@/components/Feed";
+import MainApp from "@/components/MainApp";
 
 const K_USER = "stockfeed:user";
 const K_ONBOARDED = "stockfeed:onboarded";
@@ -78,7 +78,7 @@ export default function Home() {
     return <Onboarding nickname={nickname} onDone={handleOnboardDone} />;
   }
   return (
-    <Feed
+    <MainApp
       nickname={nickname}
       initialFollowed={followed}
       initialTranslate={translate}
