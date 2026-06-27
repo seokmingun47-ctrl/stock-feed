@@ -20,12 +20,17 @@ const ALLOWED = [
   "fool.com",
   "seekingalpha.com",
   "ft.com",
+  "marketbeat.com",
+  "fortune.com",
   // 국내
   "hankyung.com",
   "yna.co.kr",
   "edaily.co.kr",
   "chosun.com",
   "fnnews.com",
+  "mk.co.kr",
+  "asiae.co.kr",
+  "einfomax.co.kr",
 ];
 
 function allowed(host: string): boolean {
