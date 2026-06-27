@@ -199,16 +199,6 @@ export const SOURCES: Source[] = [
     color: "#bb1919",
   },
   {
-    id: "marketbeat",
-    name: "MarketBeat",
-    handle: "@MarketBeat",
-    category: "Stocks",
-    region: "global",
-    url: "https://www.marketbeat.com/feed/",
-    domain: "marketbeat.com",
-    color: "#2563eb",
-  },
-  {
     id: "fortune",
     name: "Fortune",
     handle: "@FortuneMagazine",

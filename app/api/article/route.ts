@@ -20,7 +20,6 @@ const ALLOWED = [
   "fool.com",
   "seekingalpha.com",
   "ft.com",
-  "marketbeat.com",
   "fortune.com",
   // 국내
   "hankyung.com",
@@ -164,8 +163,12 @@ function extractParagraphs(html: string): string[] {
   );
 
   // 4) itemprop=articleBody 컨테이너의 블록/<br> 텍스트 (edaily 등 div 본문)
+  //    여는 태그 끝(>) 다음부터 잘라야 속성 텍스트가 안 섞임
   const idx = html.search(/itemprop=["']articleBody["']/i);
-  if (idx >= 0) candidates.push(blockParas(html.slice(idx, idx + 40000)));
+  if (idx >= 0) {
+    const gt = html.indexOf(">", idx);
+    if (gt >= 0) candidates.push(blockParas(html.slice(gt + 1, gt + 1 + 40000)));
+  }
 
   // 본문을 가장 많이 건진 방식 채택
   return candidates.reduce(
