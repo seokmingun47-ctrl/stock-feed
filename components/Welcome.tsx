@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SOURCE_MAP } from "@/lib/sources";
 import SourceAvatar from "@/components/SourceAvatar";
+import { LogoMark } from "@/components/Logo";
 
 // 오른쪽 미리보기 피드 샘플 (장식용)
 const PREVIEW: { id: string; text: string; trend?: "up" | "down" }[] = [
@@ -43,11 +44,10 @@ export default function Welcome({
         {/* ── 왼쪽: 브랜딩 + 시작 폼 ── */}
         <div className="flex flex-col justify-center px-7 py-14 sm:px-12">
           <div className="mb-9 flex items-center gap-2.5">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-[#2f81f7] to-[#4f46e5] text-[22px] font-black text-white shadow-md shadow-indigo-300/40">
-              ₩
-            </span>
-            <span className="text-[24px] font-extrabold tracking-tight text-zinc-900">
-              증권피드<span className="text-indigo-600">.</span>
+            <LogoMark size={40} />
+            <span className="text-[25px] font-extrabold tracking-tight">
+              <span className="text-zinc-900">New</span>
+              <span className="text-indigo-600">sync</span>
             </span>
           </div>
 

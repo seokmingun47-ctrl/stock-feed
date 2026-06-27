@@ -6,6 +6,7 @@ import type { Article } from "@/lib/types";
 import SourceAvatar from "@/components/SourceAvatar";
 import ArticleCard from "@/components/ArticleCard";
 import ManageSheet from "@/components/ManageSheet";
+import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 
 const STORE_KEY = "stockfeed:followed";
@@ -115,11 +116,10 @@ export default function Feed({
       <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
         <div className="flex items-center justify-between px-4 pb-2 pt-3">
           <div className="flex items-center gap-2">
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-[15px] font-black text-white">
-              ₩
-            </span>
-            <h1 className="text-[19px] font-extrabold tracking-tight text-text">
-              증권피드
+            <LogoMark size={28} />
+            <h1 className="text-[19px] font-extrabold tracking-tight">
+              <span className="text-text">New</span>
+              <span className="text-accent">sync</span>
             </h1>
           </div>
           <div className="flex items-center gap-1">
