@@ -215,7 +215,12 @@ export default function Feed({
           />
         ) : (
           shown.map((a) => (
-            <ArticleCard key={a.id} article={a} source={SOURCE_MAP[a.sourceId]} />
+            <ArticleCard
+              key={a.id}
+              article={a}
+              source={SOURCE_MAP[a.sourceId]}
+              translate={translate}
+            />
           ))
         )}
       </main>

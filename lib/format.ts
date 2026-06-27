@@ -16,3 +16,17 @@ export function timeAgo(ms: number): string {
 export function faviconUrl(domain: string): string {
   return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 }
+
+// 영문 기사를 구글 번역(한국어) 페이지로 여는 URL.
+// host.translate.goog 프록시가 페이지 전체를 한국어로 번역해 보여줌.
+export function googleTranslateUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const host =
+      u.hostname.replace(/-/g, "--").replace(/\./g, "-") + ".translate.goog";
+    const sep = u.search ? "&" : "?";
+    return `https://${host}${u.pathname}${u.search}${sep}_x_tr_sl=en&_x_tr_tl=ko&_x_tr_hl=ko&_x_tr_pto=wapp`;
+  } catch {
+    return url;
+  }
+}
