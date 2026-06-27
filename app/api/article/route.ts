@@ -71,6 +71,52 @@ function totalLen(ps: string[]): number {
   return ps.reduce((a, p) => a + p.length, 0);
 }
 
+// 문자열 리터럴을 고려해 start 위치의 { } JSON 객체를 정확히 잘라냄
+function sliceJsonObject(s: string, start: number): string | null {
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) return s.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+// Arc XP(조선비즈 등): window.Fusion.globalContent.content_elements에서 본문 추출
+function fusionParas(html: string): string[] {
+  const key = "Fusion.globalContent";
+  const i = html.indexOf(key);
+  if (i < 0) return [];
+  const eq = html.indexOf("=", i);
+  const brace = eq >= 0 ? html.indexOf("{", eq) : -1;
+  if (brace < 0) return [];
+  const json = sliceJsonObject(html, brace);
+  if (!json) return [];
+  try {
+    const gc = JSON.parse(json) as { content_elements?: Array<Record<string, unknown>> };
+    const els = gc.content_elements || [];
+    const out: string[] = [];
+    for (const e of els) {
+      if ((e.type === "text" || e.type === "header") && typeof e.content === "string") {
+        out.push(clean(e.content));
+      }
+    }
+    return dedupe(out);
+  } catch {
+    return [];
+  }
+}
+
 // 블록/<br> 단위로 텍스트를 문단으로 쪼갬 (div+<br> 본문용)
 function blockParas(htmlChunk: string): string[] {
   const lines = htmlChunk
@@ -100,22 +146,27 @@ function extractParagraphs(html: string): string[] {
       /* skip */
     }
   }
-  if (best.length > 200) {
-    return dedupe(best.split(/\n+/).map((p) => p.trim()));
-  }
+  const candidates: string[][] = [];
+  if (best.length > 200)
+    candidates.push(dedupe(best.split(/\n+/).map((p) => p.trim())));
 
-  // 2) <p> 태그 추출
-  const pPs = dedupe(
-    [...html.matchAll(/<p[ >][\s\S]*?<\/p>/gi)].map((x) => clean(x[0])),
+  // 2) Arc XP Fusion 본문 (조선비즈 등 JS 렌더 사이트)
+  candidates.push(fusionParas(html));
+
+  // 3) <p> 태그 추출
+  candidates.push(
+    dedupe([...html.matchAll(/<p[ >][\s\S]*?<\/p>/gi)].map((x) => clean(x[0]))),
   );
 
-  // 3) itemprop=articleBody 컨테이너의 블록/<br> 텍스트 (edaily 등 div 본문)
-  let containerPs: string[] = [];
+  // 4) itemprop=articleBody 컨테이너의 블록/<br> 텍스트 (edaily 등 div 본문)
   const idx = html.search(/itemprop=["']articleBody["']/i);
-  if (idx >= 0) containerPs = blockParas(html.slice(idx, idx + 40000));
+  if (idx >= 0) candidates.push(blockParas(html.slice(idx, idx + 40000)));
 
-  // 더 많은 본문을 건진 쪽 채택
-  return totalLen(containerPs) > totalLen(pPs) ? containerPs : pPs;
+  // 본문을 가장 많이 건진 방식 채택
+  return candidates.reduce(
+    (bestPs, ps) => (totalLen(ps) > totalLen(bestPs) ? ps : bestPs),
+    [] as string[],
+  );
 }
 
 export async function GET(req: NextRequest) {
