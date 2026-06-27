@@ -6,6 +6,7 @@ import type { Article } from "@/lib/types";
 import SourceAvatar from "@/components/SourceAvatar";
 import ArticleCard from "@/components/ArticleCard";
 import ManageSheet from "@/components/ManageSheet";
+import ArticleReader from "@/components/ArticleReader";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 
@@ -33,6 +34,7 @@ export default function Feed({
   const [updatedAt, setUpdatedAt] = useState(0);
   const [manage, setManage] = useState(false);
   const [translate, setTranslate] = useState(initialTranslate);
+  const [reader, setReader] = useState<Article | null>(null);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
 
@@ -220,6 +222,7 @@ export default function Feed({
               article={a}
               source={SOURCE_MAP[a.sourceId]}
               translate={translate}
+              onRead={setReader}
             />
           ))
         )}
@@ -233,6 +236,14 @@ export default function Feed({
           onChange={setFollowed}
           onClose={() => setManage(false)}
           onLogout={onLogout}
+        />
+      )}
+
+      {reader && (
+        <ArticleReader
+          article={reader}
+          source={SOURCE_MAP[reader.sourceId]}
+          onClose={() => setReader(null)}
         />
       )}
     </div>
