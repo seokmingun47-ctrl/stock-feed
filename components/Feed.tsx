@@ -33,6 +33,8 @@ export default function Feed({
   const [error, setError] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(0);
   const [manage, setManage] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [translate, setTranslate] = useState(initialTranslate);
   const [reader, setReader] = useState<Article | null>(null);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
@@ -104,14 +106,21 @@ export default function Feed({
     [followed],
   );
 
-  const shown = useMemo(
-    () =>
-      (active === "all"
+  const shown = useMemo(() => {
+    const base = (
+      active === "all"
         ? articles
         : articles.filter((a) => a.sourceId === active)
-      ).filter((a) => SOURCE_MAP[a.sourceId]), // 알 수 없는 소스 방어
-    [articles, active],
-  );
+    ).filter((a) => SOURCE_MAP[a.sourceId]); // 알 수 없는 소스 방어
+
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return base;
+    // 제목+요약에 모든 검색어가 들어간 기사만
+    return base.filter((a) => {
+      const text = `${a.title} ${a.summary || ""}`.toLowerCase();
+      return terms.every((t) => text.includes(t));
+    });
+  }, [articles, active, query]);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[600px] flex-col bg-bg">
@@ -125,6 +134,17 @@ export default function Feed({
             </h1>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSearchOpen((v) => !v)}
+              aria-label="검색"
+              className={`grid h-9 w-9 place-items-center rounded-full transition-colors ${
+                searchOpen || query
+                  ? "bg-accent text-white"
+                  : "text-muted hover:bg-bg-soft"
+              }`}
+            >
+              <SearchIcon />
+            </button>
             <button
               onClick={toggleTranslate}
               aria-label="해외 뉴스 한국어 번역"
@@ -155,6 +175,30 @@ export default function Feed({
             </button>
           </div>
         </div>
+
+        {searchOpen && (
+          <div className="px-4 pb-2">
+            <div className="flex items-center gap-2 rounded-full border border-border bg-bg-soft px-3.5 py-2">
+              <SearchIcon className="text-muted" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="예: 미국 이란 전쟁, 삼성전자, 금리"
+                className="min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-muted"
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery("")}
+                  aria-label="지우기"
+                  className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-border text-[12px] text-text"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-3 pt-1">
           <Chip
@@ -193,9 +237,11 @@ export default function Feed({
 
       <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
         <span>
-          {active === "all"
-            ? `팔로우 ${followedSources.length}곳 · 통합 피드`
-            : SOURCE_MAP[active]?.name}
+          {query.trim()
+            ? `'${query.trim()}' 검색 · ${shown.length}건`
+            : active === "all"
+              ? `팔로우 ${followedSources.length}곳 · 통합 피드`
+              : SOURCE_MAP[active]?.name}
         </span>
         {updatedAt > 0 && <span>업데이트 {timeAgo(updatedAt)}</span>}
       </div>
@@ -211,10 +257,19 @@ export default function Feed({
             actionLabel="다시 시도"
           />
         ) : shown.length === 0 ? (
-          <EmptyState
-            title="기사가 없어요"
-            desc="이 소스에서 가져온 기사가 아직 없습니다."
-          />
+          query.trim() ? (
+            <EmptyState
+              title={`'${query.trim()}' 검색 결과가 없어요`}
+              desc="다른 키워드로 검색하거나 더 많은 소스를 팔로우해 보세요."
+              action={() => setQuery("")}
+              actionLabel="검색 지우기"
+            />
+          ) : (
+            <EmptyState
+              title="기사가 없어요"
+              desc="이 소스에서 가져온 기사가 아직 없습니다."
+            />
+          )
         ) : (
           shown.map((a) => (
             <ArticleCard
@@ -279,6 +334,25 @@ function Chip({
         {label}
       </span>
     </button>
+  );
+}
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
   );
 }
 
