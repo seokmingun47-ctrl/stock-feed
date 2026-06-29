@@ -231,8 +231,8 @@ export default function Feed({
             onClick={() => setActive("popular")}
             label="인기"
           >
-            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#f6465d] to-[#ff8a3d] text-[24px]">
-              🔥
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#f6465d] to-[#ff8a3d] text-[15px] font-black tracking-tight text-white">
+              BEST
             </span>
           </Chip>
           <Chip
@@ -272,7 +272,7 @@ export default function Feed({
       <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
         <span>
           {active === "popular"
-            ? "🔥 인기 뉴스 · 좋아요 10개 이상"
+            ? "BEST 인기 뉴스 · 좋아요 10개 이상"
             : query.trim()
               ? `'${query.trim()}' 검색 · ${shown.length}건`
               : active === "all"
