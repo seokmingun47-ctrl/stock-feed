@@ -13,23 +13,37 @@ export async function GET(req: NextRequest) {
   }
   const sort = req.nextUrl.searchParams.get("sort"); // 'popular' | 'latest'
   const db = getAdminClient();
+  const user = await getUser(req);
+
   let q = db
     .from("community_posts")
     .select("*, community_comments(count)")
     .limit(100);
   q =
     sort === "popular"
-      ? q.order("views", { ascending: false })
+      ? q.gte("like_count", 10).order("like_count", { ascending: false })
       : q.order("created_at", { ascending: false });
 
   const { data, error } = await q;
   if (error) {
     return NextResponse.json({ ok: false, reason: error.message, posts: [] });
   }
-  return NextResponse.json({
-    ok: true,
-    posts: (data ?? []).map((r) => rowToPost(r as Record<string, unknown>)),
-  });
+  const posts = (data ?? []).map((r) => rowToPost(r as Record<string, unknown>));
+
+  // 내가 좋아요한 글 표시
+  if (user && posts.length) {
+    const ids = posts.map((p) => p.id);
+    const { data: myLikes } = await db
+      .from("likes")
+      .select("target_id")
+      .eq("user_id", user.id)
+      .eq("target_type", "post")
+      .in("target_id", ids);
+    const set = new Set((myLikes ?? []).map((l) => String(l.target_id)));
+    for (const p of posts) p.liked = set.has(p.id);
+  }
+
+  return NextResponse.json({ ok: true, posts });
 }
 
 // 게시글 작성 (로그인 필요, 작성자는 세션)

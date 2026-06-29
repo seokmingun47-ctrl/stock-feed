@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Post, Comment, User } from "@/lib/community";
 import { timeAgo } from "@/lib/format";
+import LikeButton from "./LikeButton";
 
 function PersonIcon({ size = 28 }: { size?: number }) {
   return (
@@ -176,7 +177,15 @@ export default function PostDetail({
                 ))}
               </div>
             )}
-            <div className="mt-3 text-[12px] text-muted">조회 {views}</div>
+            <div className="mt-4 flex items-center gap-5 border-t border-border pt-3">
+              <LikeButton
+                targetType="post"
+                targetId={post.id}
+                initialLiked={post.liked}
+                initialCount={post.likeCount}
+              />
+              <span className="text-[12px] text-muted">조회 {views}</span>
+            </div>
           </article>
 
           <div className="px-4 py-3">

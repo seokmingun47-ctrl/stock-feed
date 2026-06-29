@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 // 게시글 상세 + 댓글 (+ 조회수 증가)
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseConfigured()) {
@@ -16,6 +16,7 @@ export async function GET(
   }
   const { id } = await params;
   const db = getAdminClient();
+  const user = await getUser(req);
 
   await db.rpc("increment_post_views", { p_id: id });
 
@@ -28,6 +29,18 @@ export async function GET(
     return NextResponse.json({ ok: false, reason: "not-found" }, { status: 404 });
   }
 
+  const post = rowToPost(postRow as Record<string, unknown>);
+  if (user) {
+    const { data: like } = await db
+      .from("likes")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("target_type", "post")
+      .eq("target_id", id)
+      .maybeSingle();
+    post.liked = !!like;
+  }
+
   const { data: commentRows } = await db
     .from("community_comments")
     .select("*")
@@ -36,7 +49,7 @@ export async function GET(
 
   return NextResponse.json({
     ok: true,
-    post: rowToPost(postRow as Record<string, unknown>),
+    post,
     comments: (commentRows ?? []).map((r) =>
       rowToComment(r as Record<string, unknown>),
     ),

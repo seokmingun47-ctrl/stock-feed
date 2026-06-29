@@ -5,6 +5,7 @@ import type { Post, User } from "@/lib/community";
 import { timeAgo } from "@/lib/format";
 import PostDetail from "./PostDetail";
 import WritePost from "./WritePost";
+import LikeButton from "./LikeButton";
 
 export default function Community({ user }: { user: User }) {
   const [sort, setSort] = useState<"latest" | "popular">("latest");
@@ -131,9 +132,11 @@ export default function Community({ user }: { user: User }) {
 
 function PostCard({ post, onOpen }: { post: Post; onOpen: () => void }) {
   return (
-    <button
+    <div
       onClick={onOpen}
-      className="block w-full border-b border-border px-4 py-3.5 text-left transition-colors hover:bg-bg-soft active:bg-bg-soft"
+      role="button"
+      tabIndex={0}
+      className="block w-full cursor-pointer border-b border-border px-4 py-3.5 text-left transition-colors hover:bg-bg-soft active:bg-bg-soft"
     >
       <div className="flex items-center justify-between">
         <span className="rounded bg-[#14c38e]/15 px-1.5 py-0.5 text-[11px] font-bold text-[#14c38e]">
@@ -170,6 +173,19 @@ function PostCard({ post, onOpen }: { post: Post; onOpen: () => void }) {
         </div>
       )}
       <div className="mt-2.5 flex items-center gap-4 text-[12px] text-muted">
+        <LikeButton
+          targetType="post"
+          targetId={post.id}
+          initialLiked={post.liked}
+          initialCount={post.likeCount}
+          size="sm"
+        />
+        <span className="flex items-center gap-1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 17 0z" />
+          </svg>
+          {post.commentCount}
+        </span>
         <span className="flex items-center gap-1">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -177,14 +193,8 @@ function PostCard({ post, onOpen }: { post: Post; onOpen: () => void }) {
           </svg>
           {post.views}
         </span>
-        <span className="flex items-center gap-1">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 17 0z" />
-          </svg>
-          {post.commentCount}
-        </span>
       </div>
-    </button>
+    </div>
   );
 }
 

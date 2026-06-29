@@ -13,6 +13,8 @@ export interface Post {
   tags: string[];
   views: number;
   commentCount: number;
+  likeCount: number;
+  liked: boolean;
   createdAt: number; // epoch ms
 }
 
@@ -22,6 +24,16 @@ export interface Comment {
   nickname: string;
   body: string;
   createdAt: number;
+}
+
+// 인기 뉴스 항목
+export interface NewsItem {
+  url: string;
+  title: string;
+  sourceId: string;
+  image: string | null;
+  likeCount: number;
+  commentCount: number;
 }
 
 // DB row → Post
@@ -36,6 +48,8 @@ export function rowToPost(r: Record<string, unknown>): Post {
     tags: Array.isArray(r.tags) ? (r.tags as string[]) : [],
     views: Number(r.views ?? 0),
     commentCount: cc && cc[0] ? Number(cc[0].count) : 0,
+    likeCount: Number(r.like_count ?? 0),
+    liked: Boolean(r.liked),
     createdAt: r.created_at ? Date.parse(String(r.created_at)) : 0,
   };
 }
