@@ -52,6 +52,8 @@ export default function Feed({
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState<string | null>(null);
   const [popular, setPopular] = useState<NewsItem[] | null>(null);
+  const [breaking, setBreaking] = useState<Article[] | null>(null);
+  const topicRef = useRef<string | null>(null);
   const [translate, setTranslate] = useState(initialTranslate);
   const [reader, setReader] = useState<Article | null>(null);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
@@ -83,6 +85,23 @@ export default function Feed({
     }
   }, []);
 
+  // 속보 — 팔로우 무관, 전체 소스의 최신 뉴스 (실시간)
+  const loadBreaking = useCallback(async () => {
+    try {
+      const ids = SOURCES.map((s) => s.id).join(",");
+      const lang = trRef.current ? "&lang=ko" : "";
+      const res = await fetch(`/api/feed?sources=${ids}${lang}`, {
+        cache: "no-store",
+      });
+      const d = await res.json();
+      setBreaking(
+        (d.articles ?? []).filter((a: Article) => SOURCE_MAP[a.sourceId]),
+      );
+    } catch {
+      setBreaking([]);
+    }
+  }, []);
+
   // 최초 로드
   useEffect(() => {
     fetchFeed(followed);
@@ -103,11 +122,14 @@ export default function Feed({
     fetchFeed(followed);
   }, [followed, fetchFeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 90초마다 자동 새로고침
+  // 90초마다 자동 새로고침 (속보 보고 있으면 속보도 갱신)
   useEffect(() => {
-    const t = setInterval(() => fetchFeed(followed), 90_000);
+    const t = setInterval(() => {
+      fetchFeed(followed);
+      if (topicRef.current === "속보") loadBreaking();
+    }, 90_000);
     return () => clearInterval(t);
-  }, [followed, fetchFeed]);
+  }, [followed, fetchFeed, loadBreaking]);
 
   const toggleTranslate = () => {
     const v = !translate;
@@ -163,6 +185,12 @@ export default function Feed({
       .catch(() => setPopular([]));
   }, [active]);
 
+  useEffect(() => {
+    topicRef.current = topic;
+    if (topic === "속보") loadBreaking();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic]);
+
   const openNews = (n: NewsItem) => {
     setReader({
       id: `news:${n.url}`,
@@ -212,7 +240,10 @@ export default function Feed({
               <span className="text-[10px] opacity-80">A문</span>
             </button>
             <button
-              onClick={() => fetchFeed(followed)}
+              onClick={() => {
+                fetchFeed(followed);
+                if (topic === "속보") loadBreaking();
+              }}
               aria-label="새로고침"
               className="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-bg-soft"
             >
@@ -304,8 +335,14 @@ export default function Feed({
               <button
                 key={t.label}
                 onClick={() => {
-                  setTopic(on ? null : t.label);
-                  if (!on && active === "popular") setActive("all");
+                  const next = on ? null : t.label;
+                  setTopic(next);
+                  if (next === "속보") {
+                    setActive("all");
+                    setBreaking(null);
+                  } else if (next && active === "popular") {
+                    setActive("all");
+                  }
                 }}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${
                   on
@@ -322,7 +359,9 @@ export default function Feed({
 
       <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
         <span>
-          {active === "popular"
+          {topic === "속보"
+            ? `속보 · 전체 앱 실시간 최신 ${breaking?.length ?? 0}건`
+            : active === "popular"
             ? "BEST 인기 뉴스 · 좋아요 10개 이상"
             : topic
               ? `'${topic}' 관련 · ${shown.length}건`
@@ -332,13 +371,34 @@ export default function Feed({
                   ? `팔로우 ${followedSources.length}곳 · 통합 피드`
                   : SOURCE_MAP[active]?.name}
         </span>
-        {active !== "popular" && updatedAt > 0 && (
+        {active !== "popular" && topic !== "속보" && updatedAt > 0 && (
           <span>업데이트 {timeAgo(updatedAt)}</span>
         )}
       </div>
 
       <main className="flex-1 pb-16">
-        {active === "popular" ? (
+        {topic === "속보" ? (
+          breaking === null ? (
+            <SkeletonList />
+          ) : breaking.length === 0 ? (
+            <EmptyState
+              title="속보를 불러오지 못했어요"
+              desc="잠시 후 다시 시도해 주세요."
+              action={loadBreaking}
+              actionLabel="다시 시도"
+            />
+          ) : (
+            breaking.map((a) => (
+              <ArticleCard
+                key={a.id}
+                article={a}
+                source={SOURCE_MAP[a.sourceId]}
+                translate={translate}
+                onRead={setReader}
+              />
+            ))
+          )
+        ) : active === "popular" ? (
           popular === null ? (
             <SkeletonList />
           ) : popular.length === 0 ? (
