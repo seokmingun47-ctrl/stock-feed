@@ -51,6 +51,11 @@ function firstImage(html: string): string | null {
   return m ? m[1] : null;
 }
 
+// 본문 없는 자리표시 글 스킵 (예: trumpstruth.org 미디어/리트윗 "[No Title] - Post from …")
+function isPlaceholder(title: string): boolean {
+  return /^\[no title\]/i.test(title.trim());
+}
+
 function pickAtomLink(entry: Record<string, unknown>): string {
   const links = asArray(entry.link as unknown);
   for (const l of links) {
@@ -94,7 +99,7 @@ export function parseFeed(xml: string, source: Source): Article[] {
     const item = it as Record<string, unknown>;
     const title = stripHtml(text(item.title));
     const link = text(item.link) || text((item.guid as unknown));
-    if (!title || !link) continue;
+    if (!title || !link || isPlaceholder(title)) continue;
     const descRaw =
       text(item["content:encoded"]) || text(item.description) || "";
     const img =
@@ -114,7 +119,7 @@ export function parseFeed(xml: string, source: Source): Article[] {
     const entry = en as Record<string, unknown>;
     const title = stripHtml(text(entry.title));
     const link = pickAtomLink(entry);
-    if (!title || !link) continue;
+    if (!title || !link || isPlaceholder(title)) continue;
     const descRaw = text(entry.content) || text(entry.summary) || "";
     out.push({
       id: `${source.id}:${link}`,
