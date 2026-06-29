@@ -287,7 +287,10 @@ export default function Feed({
         <div className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-3 pt-1">
           <Chip
             active={active === "popular"}
-            onClick={() => setActive("popular")}
+            onClick={() => {
+              setActive("popular");
+              setTopic(null);
+            }}
             label="인기"
           >
             <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#f6465d] to-[#ff8a3d] text-[15px] font-black tracking-tight text-white">
@@ -295,8 +298,11 @@ export default function Feed({
             </span>
           </Chip>
           <Chip
-            active={active === "all"}
-            onClick={() => setActive("all")}
+            active={active === "all" && !topic}
+            onClick={() => {
+              setActive("all");
+              setTopic(null);
+            }}
             label="전체"
           >
             <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-accent to-[#14c38e] text-[18px] font-black text-white">
@@ -307,12 +313,19 @@ export default function Feed({
           {followedSources.map((s) => (
             <Chip
               key={s.id}
-              active={active === s.id}
-              onClick={() => setActive(s.id)}
+              active={active === s.id && !topic}
+              onClick={() => {
+                setActive(s.id);
+                setTopic(null);
+              }}
               label={s.name}
               dim={okSources.length > 0 && !okSources.includes(s.id)}
             >
-              <SourceAvatar source={s} size={52} ring={active === s.id} />
+              <SourceAvatar
+                source={s}
+                size={52}
+                ring={active === s.id && !topic}
+              />
             </Chip>
           ))}
 
@@ -337,12 +350,9 @@ export default function Feed({
                 onClick={() => {
                   const next = on ? null : t.label;
                   setTopic(next);
-                  if (next === "속보") {
-                    setActive("all");
-                    setBreaking(null);
-                  } else if (next && active === "popular") {
-                    setActive("all");
-                  }
+                  // 토픽 선택 시 소스(위 앱)는 항상 "전체" — 둘은 독립
+                  if (next) setActive("all");
+                  if (next === "속보") setBreaking(null);
                 }}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${
                   on
