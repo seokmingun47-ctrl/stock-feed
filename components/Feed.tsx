@@ -13,6 +13,21 @@ import { timeAgo } from "@/lib/format";
 
 const TR_KEY = "stockfeed:translate";
 
+// 토픽 빠른 필터 — 라벨 + 매칭어(한/영 변형 모두). 제목·요약에 하나라도 들어가면 매칭.
+const TOPICS: { label: string; terms: string[] }[] = [
+  { label: "속보", terms: ["속보", "breaking"] },
+  { label: "분석", terms: ["분석", "전망", "outlook"] },
+  { label: "코스피", terms: ["코스피", "kospi"] },
+  { label: "삼성전자", terms: ["삼성전자", "삼전", "samsung"] },
+  { label: "엔비디아", terms: ["엔비디아", "nvidia"] },
+  { label: "금리", terms: ["금리", "연준", "fed", "rate"] },
+  { label: "환율", terms: ["환율", "원/달러", "달러", "dollar"] },
+  { label: "비트코인", terms: ["비트코인", "코인", "bitcoin", "crypto"] },
+  { label: "이란", terms: ["이란", "호르무즈", "iran"] },
+  { label: "트럼프", terms: ["트럼프", "trump", "djt"] },
+  { label: "스페이스X", terms: ["스페이스x", "spacex"] },
+];
+
 export default function Feed({
   user,
   initialFollowed,
@@ -35,6 +50,7 @@ export default function Feed({
   const [manage, setManage] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [topic, setTopic] = useState<string | null>(null);
   const [popular, setPopular] = useState<NewsItem[] | null>(null);
   const [translate, setTranslate] = useState(initialTranslate);
   const [reader, setReader] = useState<Article | null>(null);
@@ -111,20 +127,31 @@ export default function Feed({
   );
 
   const shown = useMemo(() => {
-    const base = (
+    let base = (
       active === "all"
         ? articles
         : articles.filter((a) => a.sourceId === active)
     ).filter((a) => SOURCE_MAP[a.sourceId]); // 알 수 없는 소스 방어
 
+    // 토픽 필터 — 매칭어 중 하나라도 들어가면
+    if (topic) {
+      const tc = TOPICS.find((t) => t.label === topic);
+      if (tc) {
+        base = base.filter((a) => {
+          const text = `${a.title} ${a.summary || ""}`.toLowerCase();
+          return tc.terms.some((term) => text.includes(term.toLowerCase()));
+        });
+      }
+    }
+
+    // 검색어 필터 — 모든 단어가 들어가야
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (!terms.length) return base;
-    // 제목+요약에 모든 검색어가 들어간 기사만
     return base.filter((a) => {
       const text = `${a.title} ${a.summary || ""}`.toLowerCase();
       return terms.every((t) => text.includes(t));
     });
-  }, [articles, active, query]);
+  }, [articles, active, query, topic]);
 
   // 인기 뉴스 (좋아요 10+)
   useEffect(() => {
@@ -268,17 +295,42 @@ export default function Feed({
             <span className="text-[11px] text-muted">추가</span>
           </button>
         </div>
+
+        {/* 토픽 빠른 필터 칩 */}
+        <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border/60 px-4 py-2.5">
+          {TOPICS.map((t) => {
+            const on = topic === t.label;
+            return (
+              <button
+                key={t.label}
+                onClick={() => {
+                  setTopic(on ? null : t.label);
+                  if (!on && active === "popular") setActive("all");
+                }}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+                  on
+                    ? "bg-text text-bg"
+                    : "bg-bg-soft text-muted hover:text-text"
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
       </header>
 
       <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
         <span>
           {active === "popular"
             ? "BEST 인기 뉴스 · 좋아요 10개 이상"
-            : query.trim()
-              ? `'${query.trim()}' 검색 · ${shown.length}건`
-              : active === "all"
-                ? `팔로우 ${followedSources.length}곳 · 통합 피드`
-                : SOURCE_MAP[active]?.name}
+            : topic
+              ? `'${topic}' 관련 · ${shown.length}건`
+              : query.trim()
+                ? `'${query.trim()}' 검색 · ${shown.length}건`
+                : active === "all"
+                  ? `팔로우 ${followedSources.length}곳 · 통합 피드`
+                  : SOURCE_MAP[active]?.name}
         </span>
         {active !== "popular" && updatedAt > 0 && (
           <span>업데이트 {timeAgo(updatedAt)}</span>
@@ -309,7 +361,14 @@ export default function Feed({
             actionLabel="다시 시도"
           />
         ) : shown.length === 0 ? (
-          query.trim() ? (
+          topic ? (
+            <EmptyState
+              title={`'${topic}' 관련 뉴스가 없어요`}
+              desc="지금 팔로우한 소스에 관련 기사가 없어요. 다른 토픽을 눌러보세요."
+              action={() => setTopic(null)}
+              actionLabel="토픽 해제"
+            />
+          ) : query.trim() ? (
             <EmptyState
               title={`'${query.trim()}' 검색 결과가 없어요`}
               desc="다른 키워드로 검색하거나 더 많은 소스를 팔로우해 보세요."
