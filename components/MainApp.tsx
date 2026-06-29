@@ -1,18 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import type { User } from "@/lib/community";
 import Feed from "./Feed";
 import Community from "./Community";
 
 type Tab = "news" | "board";
 
 export default function MainApp({
-  nickname,
+  user,
   initialFollowed,
   initialTranslate,
   onLogout,
 }: {
-  nickname: string;
+  user: User;
   initialFollowed: string[];
   initialTranslate: boolean;
   onLogout: () => void;
@@ -24,13 +25,13 @@ export default function MainApp({
       {/* 뉴스 피드는 상태 보존 위해 항상 마운트, 숨김 처리 */}
       <div className={tab === "news" ? "" : "hidden"}>
         <Feed
-          nickname={nickname}
+          user={user}
           initialFollowed={initialFollowed}
           initialTranslate={initialTranslate}
           onLogout={onLogout}
         />
       </div>
-      {tab === "board" && <Community nickname={nickname} />}
+      {tab === "board" && <Community user={user} />}
 
       {/* 하단 탭 네비게이션 */}
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur">

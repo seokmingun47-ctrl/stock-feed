@@ -1,5 +1,12 @@
+export interface User {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+}
+
 export interface Post {
   id: string;
+  userId: string | null;
   nickname: string;
   title: string;
   body: string;
@@ -11,6 +18,7 @@ export interface Post {
 
 export interface Comment {
   id: string;
+  userId: string | null;
   nickname: string;
   body: string;
   createdAt: number;
@@ -21,6 +29,7 @@ export function rowToPost(r: Record<string, unknown>): Post {
   const cc = r.community_comments as Array<{ count: number }> | undefined;
   return {
     id: String(r.id),
+    userId: r.user_id ? String(r.user_id) : null,
     nickname: String(r.nickname ?? ""),
     title: String(r.title ?? ""),
     body: String(r.body ?? ""),
@@ -34,20 +43,19 @@ export function rowToPost(r: Record<string, unknown>): Post {
 export function rowToComment(r: Record<string, unknown>): Comment {
   return {
     id: String(r.id),
+    userId: r.user_id ? String(r.user_id) : null,
     nickname: String(r.nickname ?? ""),
     body: String(r.body ?? ""),
     createdAt: r.created_at ? Date.parse(String(r.created_at)) : 0,
   };
 }
 
-// 입력 정리/검증 결과
+// 글 입력 정리/검증 (작성자는 세션에서 가져옴)
 export function cleanPostInput(input: {
-  nickname?: unknown;
   title?: unknown;
   body?: unknown;
   tags?: unknown;
-}): { nickname: string; title: string; body: string; tags: string[] } | null {
-  const nickname = String(input.nickname ?? "").trim().slice(0, 20);
+}): { title: string; body: string; tags: string[] } | null {
   const title = String(input.title ?? "").trim().slice(0, 120);
   const body = String(input.body ?? "").trim().slice(0, 5000);
   let tags: string[] = [];
@@ -57,6 +65,6 @@ export function cleanPostInput(input: {
       .filter(Boolean)
       .slice(0, 5);
   }
-  if (!nickname || !title) return null;
-  return { nickname, title, body, tags };
+  if (!title) return null;
+  return { title, body, tags };
 }

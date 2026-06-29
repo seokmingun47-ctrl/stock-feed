@@ -44,10 +44,10 @@ function Card({
 }
 
 export default function Onboarding({
-  nickname,
+  username,
   onDone,
 }: {
-  nickname: string;
+  username: string;
   onDone: (ids: string[]) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -65,7 +65,7 @@ export default function Onboarding({
     <div className="mx-auto flex min-h-screen max-w-[600px] flex-col bg-bg">
       <div className="px-5 pb-2 pt-8">
         <p className="text-[13px] font-semibold text-accent">
-          {nickname}님, 환영해요 👋
+          {username}님, 환영해요 👋
         </p>
         <h1 className="mt-1.5 text-[22px] font-extrabold leading-snug text-text">
           관심 있는 증권 소스를

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Post, Comment } from "@/lib/community";
+import type { Post, Comment, User } from "@/lib/community";
 import { timeAgo } from "@/lib/format";
 
 function PersonIcon({ size = 28 }: { size?: number }) {
@@ -17,16 +17,26 @@ function PersonIcon({ size = 28 }: { size?: number }) {
   );
 }
 
+function TrashIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
+    </svg>
+  );
+}
+
 export default function PostDetail({
   post,
-  nickname,
+  user,
   onClose,
   onChanged,
+  onDeleted,
 }: {
   post: Post;
-  nickname: string;
+  user: User;
   onClose: () => void;
   onChanged?: () => void;
+  onDeleted: (id: string) => void;
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [views, setViews] = useState(post.views);
@@ -34,6 +44,8 @@ export default function PostDetail({
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const listEnd = useRef<HTMLDivElement>(null);
+
+  const canManagePost = user.isAdmin || (!!post.userId && post.userId === user.id);
 
   useEffect(() => {
     const c = new AbortController();
@@ -68,7 +80,7 @@ export default function PostDetail({
       const res = await fetch(`/api/posts/${post.id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname, body: text }),
+        body: JSON.stringify({ body: text }),
       });
       const d = await res.json();
       if (d.ok) {
@@ -76,10 +88,30 @@ export default function PostDetail({
         setText("");
         onChanged?.();
         setTimeout(() => listEnd.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      } else {
+        alert(d.reason || "댓글 등록 실패");
       }
     } finally {
       setBusy(false);
     }
+  };
+
+  const deletePost = async () => {
+    if (!window.confirm("이 글을 삭제할까요?")) return;
+    const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
+    const d = await res.json();
+    if (d.ok) onDeleted(post.id);
+    else alert(d.reason || "삭제 실패");
+  };
+
+  const deleteComment = async (cid: string) => {
+    if (!window.confirm("이 댓글을 삭제할까요?")) return;
+    const res = await fetch(`/api/comments/${cid}`, { method: "DELETE" });
+    const d = await res.json();
+    if (d.ok) {
+      setComments((c) => c.filter((x) => x.id !== cid));
+      onChanged?.();
+    } else alert(d.reason || "삭제 실패");
   };
 
   return (
@@ -95,17 +127,29 @@ export default function PostDetail({
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <span className="text-[16px] font-bold text-text">자유게시판</span>
+          <span className="flex-1 text-[16px] font-bold text-text">자유게시판</span>
+          {canManagePost && (
+            <button
+              onClick={deletePost}
+              className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-semibold text-[#f6465d] hover:bg-[#f6465d]/10"
+            >
+              <TrashIcon /> 삭제
+            </button>
+          )}
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          {/* 본문 */}
           <article className="border-b-[6px] border-bg-soft px-4 py-4">
             <div className="flex items-center gap-2">
               <PersonIcon size={32} />
               <div className="flex-1">
-                <div className="text-[14px] font-semibold text-text">
-                  {post.nickname}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[14px] font-semibold text-text">
+                    {post.nickname}
+                  </span>
+                  {post.userId === null && (
+                    <span className="text-[11px] text-muted">·</span>
+                  )}
                 </div>
                 <div className="text-[12px] text-muted">
                   {timeAgo(post.createdAt)}
@@ -135,7 +179,6 @@ export default function PostDetail({
             <div className="mt-3 text-[12px] text-muted">조회 {views}</div>
           </article>
 
-          {/* 댓글 */}
           <div className="px-4 py-3">
             <div className="mb-2 text-[14px] font-bold text-text">
               댓글 {comments.length}
@@ -147,30 +190,42 @@ export default function PostDetail({
                 첫 댓글을 남겨보세요.
               </div>
             ) : (
-              comments.map((c) => (
-                <div key={c.id} className="flex gap-2 border-b border-border py-3">
-                  <PersonIcon size={26} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[13px] font-semibold text-text">
-                        {c.nickname}
-                      </span>
-                      <span className="text-[11px] text-muted">
-                        {timeAgo(c.createdAt)}
-                      </span>
+              comments.map((c) => {
+                const canDel =
+                  user.isAdmin || (!!c.userId && c.userId === user.id);
+                return (
+                  <div key={c.id} className="flex gap-2 border-b border-border py-3">
+                    <PersonIcon size={26} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[13px] font-semibold text-text">
+                          {c.nickname}
+                        </span>
+                        <span className="text-[11px] text-muted">
+                          {timeAgo(c.createdAt)}
+                        </span>
+                        {canDel && (
+                          <button
+                            onClick={() => deleteComment(c.id)}
+                            className="ml-auto shrink-0 text-muted hover:text-[#f6465d]"
+                            aria-label="댓글 삭제"
+                          >
+                            <TrashIcon size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <p className="mt-0.5 whitespace-pre-wrap text-[14px] leading-relaxed text-text">
+                        {c.body}
+                      </p>
                     </div>
-                    <p className="mt-0.5 whitespace-pre-wrap text-[14px] leading-relaxed text-text">
-                      {c.body}
-                    </p>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
             <div ref={listEnd} />
           </div>
         </div>
 
-        {/* 댓글 입력 */}
         <div className="border-t border-border bg-bg px-3 py-2.5">
           <div className="flex items-center gap-2">
             <input

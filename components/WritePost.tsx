@@ -4,11 +4,11 @@ import { useState } from "react";
 import type { Post } from "@/lib/community";
 
 export default function WritePost({
-  nickname,
+  username,
   onClose,
   onCreated,
 }: {
-  nickname: string;
+  username: string;
   onClose: () => void;
   onCreated: (p: Post) => void;
 }) {
@@ -30,7 +30,7 @@ export default function WritePost({
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname, title, body, tags }),
+        body: JSON.stringify({ title, body, tags }),
       });
       const d = await res.json();
       if (!d.ok) {
@@ -74,7 +74,7 @@ export default function WritePost({
             placeholder="제목"
             className="w-full bg-transparent text-[20px] font-bold text-text outline-none placeholder:text-muted"
           />
-          <div className="mt-1 text-[12px] text-muted">{nickname}님으로 작성</div>
+          <div className="mt-1 text-[12px] text-muted">{username}님으로 작성</div>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}

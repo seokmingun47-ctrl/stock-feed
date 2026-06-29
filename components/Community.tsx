@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Post } from "@/lib/community";
+import type { Post, User } from "@/lib/community";
 import { timeAgo } from "@/lib/format";
 import PostDetail from "./PostDetail";
 import WritePost from "./WritePost";
 
-export default function Community({ nickname }: { nickname: string }) {
+export default function Community({ user }: { user: User }) {
   const [sort, setSort] = useState<"latest" | "popular">("latest");
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -105,14 +105,18 @@ export default function Community({ nickname }: { nickname: string }) {
       {detail && (
         <PostDetail
           post={detail}
-          nickname={nickname}
+          user={user}
           onClose={() => setDetail(null)}
           onChanged={load}
+          onDeleted={(id) => {
+            setDetail(null);
+            setPosts((cur) => (cur ? cur.filter((p) => p.id !== id) : cur));
+          }}
         />
       )}
       {writing && (
         <WritePost
-          nickname={nickname}
+          username={user.username}
           onClose={() => setWriting(false)}
           onCreated={(p) => {
             setWriting(false);

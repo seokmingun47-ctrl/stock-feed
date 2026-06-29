@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SOURCES, SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
 import type { Article } from "@/lib/types";
+import type { User } from "@/lib/community";
 import SourceAvatar from "@/components/SourceAvatar";
 import ArticleCard from "@/components/ArticleCard";
 import ManageSheet from "@/components/ManageSheet";
@@ -15,16 +16,17 @@ const STORE_KEY = "stockfeed:followed";
 const TR_KEY = "stockfeed:translate";
 
 export default function Feed({
-  nickname,
+  user,
   initialFollowed,
   initialTranslate,
   onLogout,
 }: {
-  nickname: string;
+  user: User;
   initialFollowed: string[];
   initialTranslate: boolean;
   onLogout: () => void;
 }) {
+  const nickname = user.username;
   const [followed, setFollowed] = useState<string[]>(initialFollowed);
   const [active, setActive] = useState<string>("all");
   const [articles, setArticles] = useState<Article[]>([]);

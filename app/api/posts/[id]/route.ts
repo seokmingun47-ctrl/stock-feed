@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { rowToPost, rowToComment } from "@/lib/community";
+import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,3 +42,37 @@ export async function GET(
     ),
   });
 }
+
+// 게시글 삭제 — 관리자 또는 작성자만
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ ok: false, reason: "no-db" }, { status: 503 });
+  }
+  const user = await getUser(req);
+  if (!user) {
+    return NextResponse.json({ ok: false, reason: "로그인이 필요해요." }, { status: 401 });
+  }
+  const { id } = await params;
+  const db = getAdminClient();
+  const { data: post } = await db
+    .from("community_posts")
+    .select("user_id")
+    .eq("id", id)
+    .single();
+  if (!post) {
+    return NextResponse.json({ ok: false, reason: "not-found" }, { status: 404 });
+  }
+  const isOwner = post.user_id && String(post.user_id) === user.id;
+  if (!user.isAdmin && !isOwner) {
+    return NextResponse.json({ ok: false, reason: "권한이 없어요." }, { status: 403 });
+  }
+  const { error } = await db.from("community_posts").delete().eq("id", id);
+  if (error) {
+    return NextResponse.json({ ok: false, reason: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true });
+}
+

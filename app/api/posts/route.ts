@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { cleanPostInput, rowToPost } from "@/lib/community";
+import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,10 +32,17 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// 게시글 작성
+// 게시글 작성 (로그인 필요, 작성자는 세션)
 export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ ok: false, reason: "no-db" }, { status: 503 });
+  }
+  const user = await getUser(req);
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, reason: "로그인이 필요해요." },
+      { status: 401 },
+    );
   }
   let body: unknown;
   try {
@@ -45,14 +53,14 @@ export async function POST(req: NextRequest) {
   const clean = cleanPostInput(body as Record<string, unknown>);
   if (!clean) {
     return NextResponse.json(
-      { ok: false, reason: "닉네임과 제목은 필수예요." },
+      { ok: false, reason: "제목을 입력해주세요." },
       { status: 400 },
     );
   }
   const db = getAdminClient();
   const { data, error } = await db
     .from("community_posts")
-    .insert(clean)
+    .insert({ ...clean, nickname: user.username, user_id: user.id })
     .select("*, community_comments(count)")
     .single();
   if (error) {
