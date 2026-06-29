@@ -55,10 +55,14 @@ export default function ArticleCard({
 
       <div className="mt-2 flex gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-[16px] font-bold leading-snug text-text">
+          <h3
+            className={`text-[16px] font-bold leading-snug text-text ${
+              source.id === "truthsocial" ? "line-clamp-4" : ""
+            }`}
+          >
             {article.title}
           </h3>
-          {article.summary && (
+          {article.summary && source.id !== "truthsocial" && (
             <p className="mt-1 line-clamp-2 text-[14px] leading-relaxed text-muted">
               {article.summary}
             </p>

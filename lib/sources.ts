@@ -208,6 +208,16 @@ export const SOURCES: Source[] = [
     domain: "fortune.com",
     color: "#b08d2a",
   },
+  {
+    id: "truthsocial",
+    name: "Truth Social",
+    handle: "@realDonaldTrump",
+    category: "트럼프",
+    region: "global",
+    url: "https://trumpstruth.org/feed",
+    domain: "truthsocial.com",
+    color: "#5448ee",
+  },
 ];
 
 export const SOURCE_MAP: Record<string, Source> = Object.fromEntries(

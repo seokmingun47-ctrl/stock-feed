@@ -49,10 +49,15 @@ export default function ArticleReader({
   const listEnd = useRef<HTMLDivElement>(null);
 
   const translated = translate && source.region === "global";
+  const isSocial = source.id === "truthsocial";
   const meta = { title: article.title, sourceId: source.id, image: article.image };
 
-  // 본문(번역)
+  // 본문(번역) — 소셜 글은 추출 없이 글 텍스트 그대로
   useEffect(() => {
+    if (isSocial) {
+      setData({ ok: true, paragraphs: [] });
+      return;
+    }
     const c = new AbortController();
     const lang = translated ? "&lang=ko" : "";
     fetch(`/api/article?url=${encodeURIComponent(article.link)}${lang}`, { signal: c.signal })
@@ -60,7 +65,7 @@ export default function ArticleReader({
       .then((d) => setData(d))
       .catch(() => setData({ ok: false, reason: "error" }));
     return () => c.abort();
-  }, [article.link, translated]);
+  }, [article.link, translated, isSocial]);
 
   // 좋아요/댓글 상태
   useEffect(() => {
@@ -143,7 +148,13 @@ export default function ArticleReader({
 
         <div className="flex-1 overflow-y-auto">
           <article className="px-5 pt-4">
-            <h1 className="text-[22px] font-extrabold leading-snug text-text">{title}</h1>
+            {isSocial ? (
+              <p className="whitespace-pre-wrap text-[18px] font-medium leading-[1.7] text-text">
+                {article.title}
+              </p>
+            ) : (
+              <h1 className="text-[22px] font-extrabold leading-snug text-text">{title}</h1>
+            )}
             {translated && (
               <div className="mt-2 flex items-center gap-1.5 text-[12px] text-accent">
                 <span className="rounded-full bg-accent/15 px-2 py-0.5 font-semibold">한국어 번역</span>
@@ -153,17 +164,18 @@ export default function ArticleReader({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={image as string} alt="" onError={() => setImgOk(false)} className="mt-4 w-full rounded-xl object-cover" />
             )}
-            {!data ? (
-              <Loading message={translated ? "본문을 가져와 한국어로 번역하는 중…" : "본문을 가져오는 중…"} />
-            ) : data.ok ? (
-              <div className="mt-5 space-y-4">
-                {data.paragraphs!.map((p, i) => (
-                  <p key={i} className="text-[16px] leading-[1.75] text-text">{p}</p>
-                ))}
-              </div>
-            ) : (
-              <Fallback summary={article.summary} link={article.link} />
-            )}
+            {!isSocial &&
+              (!data ? (
+                <Loading message={translated ? "본문을 가져와 한국어로 번역하는 중…" : "본문을 가져오는 중…"} />
+              ) : data.ok ? (
+                <div className="mt-5 space-y-4">
+                  {data.paragraphs!.map((p, i) => (
+                    <p key={i} className="text-[16px] leading-[1.75] text-text">{p}</p>
+                  ))}
+                </div>
+              ) : (
+                <Fallback summary={article.summary} link={article.link} />
+              ))}
           </article>
 
           {/* 좋아요 / 댓글 요약 바 */}
