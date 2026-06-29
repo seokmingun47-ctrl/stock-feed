@@ -7,9 +7,10 @@ import Auth from "@/components/Auth";
 import Onboarding from "@/components/Onboarding";
 import MainApp from "@/components/MainApp";
 
-const K_ONBOARDED = "stockfeed:onboarded";
-const K_FOLLOWED = "stockfeed:followed";
 const K_TRANSLATE = "stockfeed:translate";
+// 팔로우/온보딩은 계정(아이디)별로 저장 — 새 계정은 반드시 온보딩
+const fKey = (u: string) => `stockfeed:followed:${u}`;
+const oKey = (u: string) => `stockfeed:onboarded:${u}`;
 
 type Screen = "loading" | "auth" | "onboarding" | "app";
 
@@ -19,11 +20,11 @@ export default function Home() {
   const [followed, setFollowed] = useState<string[]>([]);
   const [translate, setTranslate] = useState(true);
 
-  // 디바이스 설정(팔로우/번역/온보딩)은 localStorage, 로그인 상태는 세션
-  function readPrefs() {
+  // 팔로우/온보딩은 계정별 localStorage, 번역은 기기 설정, 로그인은 세션
+  function readPrefs(username: string) {
     let ids: string[] = [];
     try {
-      ids = JSON.parse(localStorage.getItem(K_FOLLOWED) || "[]").filter(
+      ids = JSON.parse(localStorage.getItem(fKey(username)) || "[]").filter(
         (id: string) => SOURCE_MAP[id],
       );
       setTranslate(localStorage.getItem(K_TRANSLATE) !== "0");
@@ -33,7 +34,8 @@ export default function Home() {
     setFollowed(ids);
     return {
       ids,
-      onboarded: localStorage.getItem(K_ONBOARDED) === "1" && ids.length >= MIN_FOLLOW,
+      onboarded:
+        localStorage.getItem(oKey(username)) === "1" && ids.length >= MIN_FOLLOW,
     };
   }
 
@@ -53,20 +55,21 @@ export default function Home() {
         return;
       }
       setUser(me);
-      const { onboarded } = readPrefs();
+      const { onboarded } = readPrefs(me.username);
       setScreen(onboarded ? "app" : "onboarding");
     })();
   }, []);
 
   const handleAuth = (u: User) => {
     setUser(u);
-    const { onboarded } = readPrefs();
+    const { onboarded } = readPrefs(u.username);
     setScreen(onboarded ? "app" : "onboarding");
   };
 
   const handleOnboardDone = (ids: string[]) => {
-    localStorage.setItem(K_FOLLOWED, JSON.stringify(ids));
-    localStorage.setItem(K_ONBOARDED, "1");
+    if (!user) return;
+    localStorage.setItem(fKey(user.username), JSON.stringify(ids));
+    localStorage.setItem(oKey(user.username), "1");
     setFollowed(ids);
     setScreen("app");
   };

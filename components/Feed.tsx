@@ -11,8 +11,6 @@ import ArticleReader from "@/components/ArticleReader";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 
-const STORE_KEY = "stockfeed:followed";
-
 const TR_KEY = "stockfeed:translate";
 
 export default function Feed({
@@ -81,7 +79,10 @@ export default function Feed({
       first.current = false;
       return;
     }
-    localStorage.setItem(STORE_KEY, JSON.stringify(followed));
+    localStorage.setItem(
+      `stockfeed:followed:${user.username}`,
+      JSON.stringify(followed),
+    );
     if (active !== "all" && !followed.includes(active)) setActive("all");
     fetchFeed(followed);
   }, [followed, fetchFeed]); // eslint-disable-line react-hooks/exhaustive-deps
