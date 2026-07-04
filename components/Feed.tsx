@@ -126,7 +126,7 @@ export default function Feed({
   useEffect(() => {
     const t = setInterval(() => {
       fetchFeed(followed);
-      if (topicRef.current === "속보") loadBreaking();
+      if (topicRef.current) loadBreaking();
     }, 90_000);
     return () => clearInterval(t);
   }, [followed, fetchFeed, loadBreaking]);
@@ -148,15 +148,26 @@ export default function Feed({
     [followed],
   );
 
+  // 팔로우 피드 (소스 + 검색어) — 토픽은 별도(전체 소스)로 처리
   const shown = useMemo(() => {
-    let base = (
+    const base = (
       active === "all"
         ? articles
         : articles.filter((a) => a.sourceId === active)
-    ).filter((a) => SOURCE_MAP[a.sourceId]); // 알 수 없는 소스 방어
+    ).filter((a) => SOURCE_MAP[a.sourceId]);
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return base;
+    return base.filter((a) => {
+      const text = `${a.title} ${a.summary || ""}`.toLowerCase();
+      return terms.every((t) => text.includes(t));
+    });
+  }, [articles, active, query]);
 
-    // 토픽 필터 — 매칭어 중 하나라도 들어가면
-    if (topic) {
+  // 토픽 결과 — 전체 소스(breaking)를 토픽 키워드로 필터. '속보'는 전체 최신.
+  const topicArticles = useMemo(() => {
+    if (breaking === null) return null;
+    let base = breaking;
+    if (topic && topic !== "속보") {
       const tc = TOPICS.find((t) => t.label === topic);
       if (tc) {
         base = base.filter((a) => {
@@ -165,15 +176,13 @@ export default function Feed({
         });
       }
     }
-
-    // 검색어 필터 — 모든 단어가 들어가야
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (!terms.length) return base;
     return base.filter((a) => {
       const text = `${a.title} ${a.summary || ""}`.toLowerCase();
       return terms.every((t) => text.includes(t));
     });
-  }, [articles, active, query, topic]);
+  }, [breaking, topic, query]);
 
   // 인기 뉴스 (좋아요 10+)
   useEffect(() => {
@@ -186,8 +195,11 @@ export default function Feed({
   }, [active]);
 
   useEffect(() => {
+    const was = topicRef.current;
     topicRef.current = topic;
-    if (topic === "속보") loadBreaking();
+    if (topic && !was)
+      loadBreaking(); // 토픽 모드 진입 시 전체 소스 로드(토픽 전환 시엔 재사용)
+    else if (!topic) setBreaking(null); // 피드로 복귀 시 정리
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic]);
 
@@ -242,7 +254,7 @@ export default function Feed({
             <button
               onClick={() => {
                 fetchFeed(followed);
-                if (topic === "속보") loadBreaking();
+                if (topic) loadBreaking();
               }}
               aria-label="새로고침"
               className="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-bg-soft"
@@ -352,7 +364,6 @@ export default function Feed({
                   setTopic(next);
                   // 토픽 선택 시 소스(위 앱)는 항상 "전체" — 둘은 독립
                   if (next) setActive("all");
-                  if (next === "속보") setBreaking(null);
                 }}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${
                   on
@@ -370,35 +381,44 @@ export default function Feed({
       <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
         <span>
           {topic === "속보"
-            ? `속보 · 전체 앱 실시간 최신 ${breaking?.length ?? 0}건`
+            ? `속보 · 전체 앱 실시간 최신 ${topicArticles?.length ?? 0}건`
+            : topic
+            ? `'${topic}' · 전체 앱 관련 ${topicArticles?.length ?? 0}건`
             : active === "popular"
             ? "BEST 인기 뉴스 · 좋아요 10개 이상"
-            : topic
-              ? `'${topic}' 관련 · ${shown.length}건`
-              : query.trim()
+            : query.trim()
                 ? `'${query.trim()}' 검색 · ${shown.length}건`
                 : active === "all"
                   ? `팔로우 ${followedSources.length}곳 · 통합 피드`
                   : SOURCE_MAP[active]?.name}
         </span>
-        {active !== "popular" && topic !== "속보" && updatedAt > 0 && (
+        {active !== "popular" && !topic && updatedAt > 0 && (
           <span>업데이트 {timeAgo(updatedAt)}</span>
         )}
       </div>
 
       <main className="flex-1 pb-16">
-        {topic === "속보" ? (
-          breaking === null ? (
+        {topic ? (
+          topicArticles === null ? (
             <SkeletonList />
-          ) : breaking.length === 0 ? (
-            <EmptyState
-              title="속보를 불러오지 못했어요"
-              desc="잠시 후 다시 시도해 주세요."
-              action={loadBreaking}
-              actionLabel="다시 시도"
-            />
+          ) : topicArticles.length === 0 ? (
+            topic === "속보" ? (
+              <EmptyState
+                title="속보를 불러오지 못했어요"
+                desc="잠시 후 다시 시도해 주세요."
+                action={loadBreaking}
+                actionLabel="다시 시도"
+              />
+            ) : (
+              <EmptyState
+                title={`'${topic}' 관련 뉴스가 없어요`}
+                desc="전체 뉴스에서도 관련 기사를 찾지 못했어요. 다른 토픽을 눌러보세요."
+                action={() => setTopic(null)}
+                actionLabel="토픽 해제"
+              />
+            )
           ) : (
-            breaking.map((a) => (
+            topicArticles.map((a) => (
               <ArticleCard
                 key={a.id}
                 article={a}
@@ -431,14 +451,7 @@ export default function Feed({
             actionLabel="다시 시도"
           />
         ) : shown.length === 0 ? (
-          topic ? (
-            <EmptyState
-              title={`'${topic}' 관련 뉴스가 없어요`}
-              desc="지금 팔로우한 소스에 관련 기사가 없어요. 다른 토픽을 눌러보세요."
-              action={() => setTopic(null)}
-              actionLabel="토픽 해제"
-            />
-          ) : query.trim() ? (
+          query.trim() ? (
             <EmptyState
               title={`'${query.trim()}' 검색 결과가 없어요`}
               desc="다른 키워드로 검색하거나 더 많은 소스를 팔로우해 보세요."
