@@ -1,22 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { Post } from "@/lib/community";
+import type { Post, PostKind } from "@/lib/community";
 
 export default function WritePost({
   username,
+  initialKind = "post",
   onClose,
   onCreated,
 }: {
   username: string;
+  initialKind?: PostKind;
   onClose: () => void;
   onCreated: (p: Post) => void;
 }) {
+  const [kind, setKind] = useState<PostKind>(initialKind);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [tagText, setTagText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const isNews = kind === "news";
 
   const submit = async () => {
     if (!title.trim() || busy) return;
@@ -30,7 +34,7 @@ export default function WritePost({
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body, tags }),
+        body: JSON.stringify({ title, body, tags, kind }),
       });
       const d = await res.json();
       if (!d.ok) {
@@ -55,7 +59,9 @@ export default function WritePost({
           >
             취소
           </button>
-          <span className="text-[16px] font-bold text-text">글쓰기</span>
+          <span className="text-[16px] font-bold text-text">
+            {isNews ? "뉴스 작성" : "글쓰기"}
+          </span>
           <button
             onClick={submit}
             disabled={!title.trim() || busy}
@@ -66,20 +72,45 @@ export default function WritePost({
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
+          {/* 글 유형 선택 — 뉴스는 팔로우한 사람의 뉴스 피드에 노출됨 */}
+          <div className="mb-4 inline-flex rounded-full bg-bg-soft p-1">
+            {(
+              [
+                ["post", "자유글"],
+                ["news", "뉴스"],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setKind(k)}
+                className={`rounded-full px-4 py-1.5 text-[13px] font-bold transition-colors ${
+                  kind === k ? "bg-accent text-white" : "text-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={120}
             autoFocus
-            placeholder="제목"
+            placeholder={isNews ? "뉴스 제목" : "제목"}
             className="w-full bg-transparent text-[20px] font-bold text-text outline-none placeholder:text-muted"
           />
-          <div className="mt-1 text-[12px] text-muted">{username}님으로 작성</div>
+          <div className="mt-1 text-[12px] text-muted">
+            {username}님으로 {isNews ? "뉴스 발행" : "작성"}
+          </div>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             maxLength={5000}
-            placeholder="자유롭게 이야기를 나눠보세요. (증시 전망, 종목 토론 등)"
+            placeholder={
+              isNews
+                ? "뉴스 내용을 작성하세요. 팔로워들이 뉴스 피드에서 보게 됩니다."
+                : "자유롭게 이야기를 나눠보세요. (증시 전망, 종목 토론 등)"
+            }
             className="mt-4 min-h-[240px] w-full resize-none bg-transparent text-[16px] leading-relaxed text-text outline-none placeholder:text-muted"
           />
           <input

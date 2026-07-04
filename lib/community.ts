@@ -4,6 +4,8 @@ export interface User {
   isAdmin: boolean;
 }
 
+export type PostKind = "post" | "news";
+
 export interface Post {
   id: string;
   userId: string | null;
@@ -11,11 +13,20 @@ export interface Post {
   title: string;
   body: string;
   tags: string[];
+  kind: PostKind; // 'post'=자유글, 'news'=유저 뉴스
   views: number;
   commentCount: number;
   likeCount: number;
   liked: boolean;
+  following: boolean; // 현재 사용자가 작성자를 팔로우 중인지
   createdAt: number; // epoch ms
+}
+
+// 팔로우한(뉴스를 쓰는) 유저 — 뉴스탭 상단 채널 칩용
+export interface Author {
+  id: string;
+  username: string;
+  newsCount: number;
 }
 
 export interface Comment {
@@ -46,10 +57,12 @@ export function rowToPost(r: Record<string, unknown>): Post {
     title: String(r.title ?? ""),
     body: String(r.body ?? ""),
     tags: Array.isArray(r.tags) ? (r.tags as string[]) : [],
+    kind: r.kind === "news" ? "news" : "post",
     views: Number(r.views ?? 0),
     commentCount: cc && cc[0] ? Number(cc[0].count) : 0,
     likeCount: Number(r.like_count ?? 0),
     liked: Boolean(r.liked),
+    following: Boolean(r.following),
     createdAt: r.created_at ? Date.parse(String(r.created_at)) : 0,
   };
 }
@@ -69,9 +82,11 @@ export function cleanPostInput(input: {
   title?: unknown;
   body?: unknown;
   tags?: unknown;
-}): { title: string; body: string; tags: string[] } | null {
+  kind?: unknown;
+}): { title: string; body: string; tags: string[]; kind: PostKind } | null {
   const title = String(input.title ?? "").trim().slice(0, 120);
   const body = String(input.body ?? "").trim().slice(0, 5000);
+  const kind: PostKind = input.kind === "news" ? "news" : "post";
   let tags: string[] = [];
   if (Array.isArray(input.tags)) {
     tags = input.tags
@@ -80,5 +95,5 @@ export function cleanPostInput(input: {
       .slice(0, 5);
   }
   if (!title) return null;
-  return { title, body, tags };
+  return { title, body, tags, kind };
 }

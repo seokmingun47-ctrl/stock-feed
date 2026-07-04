@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { User } from "@/lib/community";
+import { useCallback, useEffect, useState } from "react";
+import type { Author, User } from "@/lib/community";
 import Feed from "./Feed";
 import Community from "./Community";
 
@@ -19,6 +19,19 @@ export default function MainApp({
   onLogout: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("news");
+  const [authors, setAuthors] = useState<Author[]>([]);
+
+  // 내가 팔로우한 유저(뉴스 채널) 목록 — 뉴스탭 상단 칩
+  const reloadAuthors = useCallback(() => {
+    fetch("/api/follows", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setAuthors(d.ok ? d.authors : []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    reloadAuthors();
+  }, [reloadAuthors]);
 
   return (
     <div>
@@ -28,10 +41,14 @@ export default function MainApp({
           user={user}
           initialFollowed={initialFollowed}
           initialTranslate={initialTranslate}
+          authors={authors}
+          reloadAuthors={reloadAuthors}
           onLogout={onLogout}
         />
       </div>
-      {tab === "board" && <Community user={user} />}
+      {tab === "board" && (
+        <Community user={user} onFollowChange={reloadAuthors} />
+      )}
 
       {/* 하단 탭 네비게이션 */}
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur">

@@ -7,7 +7,13 @@ import PostDetail from "./PostDetail";
 import WritePost from "./WritePost";
 import LikeButton from "./LikeButton";
 
-export default function Community({ user }: { user: User }) {
+export default function Community({
+  user,
+  onFollowChange,
+}: {
+  user: User;
+  onFollowChange?: () => void;
+}) {
   const [sort, setSort] = useState<"latest" | "popular">("latest");
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -109,6 +115,7 @@ export default function Community({ user }: { user: User }) {
           user={user}
           onClose={() => setDetail(null)}
           onChanged={load}
+          onFollowChange={onFollowChange}
           onDeleted={(id) => {
             setDetail(null);
             setPosts((cur) => (cur ? cur.filter((p) => p.id !== id) : cur));
@@ -139,9 +146,15 @@ function PostCard({ post, onOpen }: { post: Post; onOpen: () => void }) {
       className="block w-full cursor-pointer border-b border-border px-4 py-3.5 text-left transition-colors hover:bg-bg-soft active:bg-bg-soft"
     >
       <div className="flex items-center justify-between">
-        <span className="rounded bg-[#14c38e]/15 px-1.5 py-0.5 text-[11px] font-bold text-[#14c38e]">
-          자유게시판
-        </span>
+        {post.kind === "news" ? (
+          <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-bold text-accent">
+            📰 뉴스
+          </span>
+        ) : (
+          <span className="rounded bg-[#14c38e]/15 px-1.5 py-0.5 text-[11px] font-bold text-[#14c38e]">
+            자유게시판
+          </span>
+        )}
         <span className="text-[12px] text-muted">{timeAgo(post.createdAt)}</span>
       </div>
       <div className="mt-2 flex items-center gap-1.5 text-[13px] text-muted">

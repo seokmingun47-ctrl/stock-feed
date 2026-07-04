@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Post, Comment, User } from "@/lib/community";
 import { timeAgo } from "@/lib/format";
 import LikeButton from "./LikeButton";
+import FollowButton from "./FollowButton";
 
 function PersonIcon({ size = 28 }: { size?: number }) {
   return (
@@ -32,21 +33,27 @@ export default function PostDetail({
   onClose,
   onChanged,
   onDeleted,
+  onFollowChange,
 }: {
   post: Post;
   user: User;
   onClose: () => void;
   onChanged?: () => void;
   onDeleted: (id: string) => void;
+  onFollowChange?: () => void;
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [views, setViews] = useState(post.views);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [following, setFollowing] = useState(post.following);
+  const [followerCount, setFollowerCount] = useState(0);
   const listEnd = useRef<HTMLDivElement>(null);
 
+  const isNews = post.kind === "news";
   const canManagePost = user.isAdmin || (!!post.userId && post.userId === user.id);
+  const canFollow = !!post.userId && post.userId !== user.id;
 
   useEffect(() => {
     const c = new AbortController();
@@ -56,6 +63,9 @@ export default function PostDetail({
         if (d.ok) {
           setComments(d.comments ?? []);
           setViews(d.post?.views ?? post.views);
+          if (typeof d.post?.following === "boolean")
+            setFollowing(d.post.following);
+          setFollowerCount(Number(d.followerCount ?? 0));
         }
         setLoaded(true);
       })
@@ -128,7 +138,9 @@ export default function PostDetail({
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <span className="flex-1 text-[16px] font-bold text-text">자유게시판</span>
+          <span className="flex-1 text-[16px] font-bold text-text">
+            {isNews ? "유저 뉴스" : "자유게시판"}
+          </span>
           {canManagePost && (
             <button
               onClick={deletePost}
@@ -141,21 +153,35 @@ export default function PostDetail({
 
         <div className="flex-1 overflow-y-auto">
           <article className="border-b-[6px] border-bg-soft px-4 py-4">
+            {isNews && (
+              <span className="mb-2 inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-bold text-accent">
+                📰 뉴스
+              </span>
+            )}
             <div className="flex items-center gap-2">
               <PersonIcon size={32} />
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[14px] font-semibold text-text">
+                  <span className="truncate text-[14px] font-semibold text-text">
                     {post.nickname}
                   </span>
-                  {post.userId === null && (
-                    <span className="text-[11px] text-muted">·</span>
-                  )}
                 </div>
                 <div className="text-[12px] text-muted">
                   {timeAgo(post.createdAt)}
+                  {followerCount > 0 && ` · 팔로워 ${followerCount}`}
                 </div>
               </div>
+              {canFollow && (
+                <FollowButton
+                  authorId={post.userId!}
+                  initialFollowing={following}
+                  onChange={(f) => {
+                    setFollowing(f);
+                    setFollowerCount((c) => Math.max(0, c + (f ? 1 : -1)));
+                    onFollowChange?.();
+                  }}
+                />
+              )}
             </div>
             <h1 className="mt-3 text-[20px] font-extrabold leading-snug text-text">
               {post.title}

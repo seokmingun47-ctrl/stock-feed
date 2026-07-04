@@ -41,6 +41,29 @@ export async function GET(
     post.liked = !!like;
   }
 
+  // 작성자 팔로우 상태 + 팔로워 수 (follows 미설정이면 0/false)
+  let followerCount = 0;
+  if (post.userId) {
+    try {
+      const { count } = await db
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("author_id", post.userId);
+      followerCount = count ?? 0;
+      if (user) {
+        const { data: f } = await db
+          .from("follows")
+          .select("id")
+          .eq("follower_id", user.id)
+          .eq("author_id", post.userId)
+          .maybeSingle();
+        post.following = !!f;
+      }
+    } catch {
+      /* follows 테이블 미설정 */
+    }
+  }
+
   const { data: commentRows } = await db
     .from("community_comments")
     .select("*")
@@ -50,6 +73,7 @@ export async function GET(
   return NextResponse.json({
     ok: true,
     post,
+    followerCount,
     comments: (commentRows ?? []).map((r) =>
       rowToComment(r as Record<string, unknown>),
     ),

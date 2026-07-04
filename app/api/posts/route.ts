@@ -11,7 +11,10 @@ export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ ok: false, reason: "no-db", posts: [] });
   }
-  const sort = req.nextUrl.searchParams.get("sort"); // 'popular' | 'latest'
+  const params = req.nextUrl.searchParams;
+  const sort = params.get("sort"); // 'popular' | 'latest'
+  const kind = params.get("kind"); // 'news' | 'post' | null(전체)
+  const author = params.get("author"); // 작성자 user_id (유저 채널)
   const db = getAdminClient();
   const user = await getUser(req);
 
@@ -19,6 +22,8 @@ export async function GET(req: NextRequest) {
     .from("community_posts")
     .select("*, community_comments(count)")
     .limit(100);
+  if (kind === "news" || kind === "post") q = q.eq("kind", kind);
+  if (author) q = q.eq("user_id", author);
   q =
     sort === "popular"
       ? q.gte("like_count", 10).order("like_count", { ascending: false })
@@ -30,7 +35,7 @@ export async function GET(req: NextRequest) {
   }
   const posts = (data ?? []).map((r) => rowToPost(r as Record<string, unknown>));
 
-  // 내가 좋아요한 글 표시
+  // 내가 좋아요한 글 / 팔로우한 작성자 표시
   if (user && posts.length) {
     const ids = posts.map((p) => p.id);
     const { data: myLikes } = await db
@@ -39,8 +44,28 @@ export async function GET(req: NextRequest) {
       .eq("user_id", user.id)
       .eq("target_type", "post")
       .in("target_id", ids);
-    const set = new Set((myLikes ?? []).map((l) => String(l.target_id)));
-    for (const p of posts) p.liked = set.has(p.id);
+    const likeSet = new Set((myLikes ?? []).map((l) => String(l.target_id)));
+    for (const p of posts) p.liked = likeSet.has(p.id);
+
+    const authorIds = [
+      ...new Set(posts.map((p) => p.userId).filter(Boolean) as string[]),
+    ];
+    if (authorIds.length) {
+      try {
+        const { data: myFollows } = await db
+          .from("follows")
+          .select("author_id")
+          .eq("follower_id", user.id)
+          .in("author_id", authorIds);
+        const fSet = new Set(
+          (myFollows ?? []).map((f) => String(f.author_id)),
+        );
+        for (const p of posts)
+          p.following = !!p.userId && fSet.has(p.userId);
+      } catch {
+        /* follows 테이블 미설정 — following=false 유지 */
+      }
+    }
   }
 
   return NextResponse.json({ ok: true, posts });
@@ -72,11 +97,21 @@ export async function POST(req: NextRequest) {
     );
   }
   const db = getAdminClient();
-  const { data, error } = await db
+  let { data, error } = await db
     .from("community_posts")
     .insert({ ...clean, nickname: user.username, user_id: user.id })
     .select("*, community_comments(count)")
     .single();
+  // kind 컬럼 미설정(마이그레이션 전)이면 kind 없이 재시도 → 자유글로 저장
+  if (error && /kind/i.test(error.message)) {
+    const { kind: _kind, ...rest } = clean;
+    void _kind;
+    ({ data, error } = await db
+      .from("community_posts")
+      .insert({ ...rest, nickname: user.username, user_id: user.id })
+      .select("*, community_comments(count)")
+      .single());
+  }
   if (error) {
     return NextResponse.json({ ok: false, reason: error.message }, { status: 500 });
   }

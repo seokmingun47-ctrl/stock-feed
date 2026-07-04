@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SOURCES, SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
 import type { Article } from "@/lib/types";
-import type { User, NewsItem } from "@/lib/community";
+import type { User, NewsItem, Author } from "@/lib/community";
 import SourceAvatar from "@/components/SourceAvatar";
 import ArticleCard from "@/components/ArticleCard";
 import ManageSheet from "@/components/ManageSheet";
 import ArticleReader from "@/components/ArticleReader";
+import UserNewsFeed from "@/components/UserNewsFeed";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 
@@ -32,11 +33,15 @@ export default function Feed({
   user,
   initialFollowed,
   initialTranslate,
+  authors,
+  reloadAuthors,
   onLogout,
 }: {
   user: User;
   initialFollowed: string[];
   initialTranslate: boolean;
+  authors: Author[];
+  reloadAuthors: () => void;
   onLogout: () => void;
 }) {
   const nickname = user.username;
@@ -120,7 +125,13 @@ export default function Feed({
       `stockfeed:followed:${user.username}`,
       JSON.stringify(followed),
     );
-    if (active !== "all" && !followed.includes(active)) setActive("all");
+    if (
+      active !== "all" &&
+      active !== "popular" &&
+      !active.startsWith("user:") &&
+      !followed.includes(active)
+    )
+      setActive("all");
     fetchFeed(followed);
   }, [followed, fetchFeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -149,6 +160,22 @@ export default function Feed({
     () => followed.map((id) => SOURCE_MAP[id]).filter(Boolean),
     [followed],
   );
+
+  // 유저 뉴스 채널 (active === "user:<id>")
+  const activeAuthorId = active.startsWith("user:") ? active.slice(5) : null;
+  const activeAuthor = useMemo(
+    () =>
+      activeAuthorId
+        ? authors.find((a) => a.id === activeAuthorId) ?? null
+        : null,
+    [authors, activeAuthorId],
+  );
+  // 보고 있던 유저를 팔로우 해제하면 전체 피드로 복귀
+  useEffect(() => {
+    if (activeAuthorId && !authors.some((a) => a.id === activeAuthorId)) {
+      setActive("all");
+    }
+  }, [authors, activeAuthorId]);
 
   // 팔로우 피드 (소스 + 검색어) — 토픽은 별도(전체 소스)로 처리
   const shown = useMemo(() => {
@@ -347,6 +374,24 @@ export default function Feed({
             </Chip>
           ))}
 
+          {/* 팔로우한 유저 채널 */}
+          {authors.map((a) => (
+            <Chip
+              key={`user:${a.id}`}
+              active={active === `user:${a.id}`}
+              onClick={() => {
+                setActive(`user:${a.id}`);
+                setTopic(null);
+              }}
+              label={a.username}
+            >
+              <UserChipAvatar
+                username={a.username}
+                ring={active === `user:${a.id}`}
+              />
+            </Chip>
+          ))}
+
           <button
             onClick={() => setManage(true)}
             className="flex shrink-0 flex-col items-center gap-1.5"
@@ -384,6 +429,7 @@ export default function Feed({
         </div>
       </header>
 
+      {!activeAuthorId && (
       <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
         <span>
           {topic === "속보"
@@ -402,9 +448,20 @@ export default function Feed({
           <span>업데이트 {timeAgo(updatedAt)}</span>
         )}
       </div>
+      )}
 
       <main className="flex-1 pb-16">
-        {topic ? (
+        {activeAuthorId ? (
+          activeAuthor ? (
+            <UserNewsFeed
+              author={activeAuthor}
+              user={user}
+              onFollowChange={reloadAuthors}
+            />
+          ) : (
+            <SkeletonList />
+          )
+        ) : topic ? (
           topicArticles === null ? (
             <SkeletonList />
           ) : topicArticles.length === 0 ? (
@@ -559,6 +616,29 @@ function PopularNewsCard({
         )}
       </div>
     </div>
+  );
+}
+
+// 유저 채널 아바타 — 이니셜 + 사람 표시 배지(뉴스 소스와 구분)
+function UserChipAvatar({
+  username,
+  ring,
+}: {
+  username: string;
+  ring: boolean;
+}) {
+  return (
+    <span
+      className="relative grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#7b5cff] to-[#18b6e6] text-[19px] font-black text-white"
+      style={ring ? { boxShadow: "0 0 0 2.5px var(--bg), 0 0 0 4.5px var(--accent)" } : undefined}
+    >
+      {username.slice(0, 1).toUpperCase()}
+      <span className="absolute -bottom-0.5 -right-0.5 grid h-[18px] w-[18px] place-items-center rounded-full border-2 border-bg bg-[#7b5cff] text-white">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z" />
+        </svg>
+      </span>
+    </span>
   );
 }
 
