@@ -50,11 +50,13 @@ export default function ArticleReader({
 
   const translated = translate && source.region === "global";
   const isSocial = source.id === "truthsocial";
+  const isAggregator = !!source.hidden; // 구글뉴스 등 집계 링크 — 추출 대신 요약 표시
+  const noExtract = isSocial || isAggregator;
   const meta = { title: article.title, sourceId: source.id, image: article.image };
 
-  // 본문(번역) — 소셜 글은 추출 없이 글 텍스트 그대로
+  // 본문(번역) — 소셜/집계는 추출 없이 텍스트 그대로
   useEffect(() => {
-    if (isSocial) {
+    if (noExtract) {
       setData({ ok: true, paragraphs: [] });
       return;
     }
@@ -65,7 +67,7 @@ export default function ArticleReader({
       .then((d) => setData(d))
       .catch(() => setData({ ok: false, reason: "error" }));
     return () => c.abort();
-  }, [article.link, translated, isSocial]);
+  }, [article.link, translated, noExtract]);
 
   // 좋아요/댓글 상태
   useEffect(() => {
@@ -95,7 +97,7 @@ export default function ArticleReader({
     };
   }, [onClose]);
 
-  const title = data?.ok ? data.title : article.title;
+  const title = (data?.ok && data.title) || article.title;
   const image = data?.ok ? data.image : article.image;
   const showImg = image && imgOk;
 
@@ -164,8 +166,23 @@ export default function ArticleReader({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={image as string} alt="" onError={() => setImgOk(false)} className="mt-4 w-full rounded-xl object-cover" />
             )}
-            {!isSocial &&
-              (!data ? (
+            {isAggregator ? (
+              <div className="mt-5">
+                <p className="text-[14px] leading-relaxed text-muted">
+                  구글 뉴스가 모은 외부 매체 속보예요. 헤드라인만 제공되니 전체 기사는
+                  원문에서 확인하세요.
+                </p>
+                <a
+                  href={article.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-block rounded-full bg-accent px-5 py-2.5 text-[14px] font-semibold text-white"
+                >
+                  기사 전체 보기 ↗
+                </a>
+              </div>
+            ) : !isSocial ? (
+              !data ? (
                 <Loading message={translated ? "본문을 가져와 한국어로 번역하는 중…" : "본문을 가져오는 중…"} />
               ) : data.ok ? (
                 <div className="mt-5 space-y-4">
@@ -175,7 +192,8 @@ export default function ArticleReader({
                 </div>
               ) : (
                 <Fallback summary={article.summary} link={article.link} />
-              ))}
+              )
+            ) : null}
           </article>
 
           {/* 좋아요 / 댓글 요약 바 */}

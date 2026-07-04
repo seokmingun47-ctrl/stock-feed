@@ -95,9 +95,15 @@ export function parseFeed(xml: string, source: Source): Article[] {
   const feed = data.feed as Record<string, unknown> | undefined;
   const atomEntries = asArray(feed?.entry as unknown);
 
+  const isGNews = source.domain === "news.google.com";
   for (const it of rssItems) {
     const item = it as Record<string, unknown>;
-    const title = stripHtml(text(item.title));
+    let title = stripHtml(text(item.title));
+    // 구글뉴스 제목 끝 " - 출처명" 제거 (번역 전 → 출처명 오역 방지)
+    if (isGNews && title.includes(" - ")) {
+      const parts = title.split(" - ");
+      title = parts.slice(0, -1).join(" - ");
+    }
     const link = text(item.link) || text((item.guid as unknown));
     if (!title || !link || isPlaceholder(title)) continue;
     const descRaw =
