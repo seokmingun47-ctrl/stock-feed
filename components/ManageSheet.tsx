@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SOURCES } from "@/lib/sources";
+import { FOLLOWABLE as SOURCES } from "@/lib/sources";
 import type { Source } from "@/lib/types";
 import SourceAvatar from "./SourceAvatar";
 

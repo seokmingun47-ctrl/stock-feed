@@ -85,10 +85,12 @@ export default function Feed({
     }
   }, []);
 
-  // 속보 — 팔로우 무관, 전체 소스의 최신 뉴스 (실시간)
+  // 토픽 데이터 로드 — 전체 소스. '속보'면 외부 집계(숨김) 소스까지 포함.
   const loadBreaking = useCallback(async () => {
     try {
-      const ids = SOURCES.map((s) => s.id).join(",");
+      const list =
+        topicRef.current === "속보" ? SOURCES : SOURCES.filter((s) => !s.hidden);
+      const ids = list.map((s) => s.id).join(",");
       const lang = trRef.current ? "&lang=ko" : "";
       const res = await fetch(`/api/feed?sources=${ids}${lang}`, {
         cache: "no-store",
@@ -197,9 +199,13 @@ export default function Feed({
   useEffect(() => {
     const was = topicRef.current;
     topicRef.current = topic;
-    if (topic && !was)
-      loadBreaking(); // 토픽 모드 진입 시 전체 소스 로드(토픽 전환 시엔 재사용)
-    else if (!topic) setBreaking(null); // 피드로 복귀 시 정리
+    if (topic) {
+      // 속보(외부 포함) ↔ 다른 토픽은 소스셋이 달라 전환 시 재로드. 진입 시엔 스켈레톤.
+      if (!was) setBreaking(null);
+      loadBreaking();
+    } else {
+      setBreaking(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic]);
 

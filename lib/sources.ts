@@ -218,7 +218,33 @@ export const SOURCES: Source[] = [
     domain: "truthsocial.com",
     color: "#5448ee",
   },
+  // ── 외부 집계(숨김) — 팔로우 목록엔 안 뜨고 "속보"에만 사용 ──
+  {
+    id: "gnews_kr",
+    name: "Google 뉴스",
+    handle: "@GoogleNews",
+    category: "속보",
+    region: "kr",
+    url: "https://news.google.com/rss/search?q=%EC%A6%9D%EC%8B%9C&hl=ko&gl=KR&ceid=KR:ko",
+    domain: "news.google.com",
+    color: "#4285f4",
+    hidden: true,
+  },
+  {
+    id: "gnews_us",
+    name: "Google News",
+    handle: "@GoogleNews",
+    category: "Breaking",
+    region: "global",
+    url: "https://news.google.com/rss/search?q=stock%20market&hl=en-US&gl=US&ceid=US:en",
+    domain: "news.google.com",
+    color: "#4285f4",
+    hidden: true,
+  },
 ];
+
+// 팔로우 가능한(사용자에게 보이는) 소스 — 숨김 제외
+export const FOLLOWABLE = SOURCES.filter((s) => !s.hidden);
 
 export const SOURCE_MAP: Record<string, Source> = Object.fromEntries(
   SOURCES.map((s) => [s.id, s]),

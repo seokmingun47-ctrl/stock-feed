@@ -9,6 +9,7 @@ export interface Source {
   url: string;         // RSS 피드 주소
   domain: string;      // 파비콘/로고용 도메인
   color: string;       // 브랜드 색 (폴백 아바타)
+  hidden?: boolean;    // true면 팔로우 목록엔 안 뜨고 속보 집계에만 사용(외부 집계 소스)
 }
 
 export interface Article {

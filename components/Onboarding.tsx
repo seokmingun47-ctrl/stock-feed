@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SOURCES, MIN_FOLLOW } from "@/lib/sources";
+import { FOLLOWABLE as SOURCES, MIN_FOLLOW } from "@/lib/sources";
 import type { Source } from "@/lib/types";
 import SourceAvatar from "@/components/SourceAvatar";
 
