@@ -34,6 +34,7 @@ export default function PostDetail({
   onChanged,
   onDeleted,
   onFollowChange,
+  onOpenProfile,
 }: {
   post: Post;
   user: User;
@@ -41,6 +42,7 @@ export default function PostDetail({
   onChanged?: () => void;
   onDeleted: (id: string) => void;
   onFollowChange?: () => void;
+  onOpenProfile?: (authorId: string, username: string) => void;
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [views, setViews] = useState(post.views);
@@ -54,6 +56,7 @@ export default function PostDetail({
   const isNews = post.kind === "news";
   const canManagePost = user.isAdmin || (!!post.userId && post.userId === user.id);
   const canFollow = !!post.userId && post.userId !== user.id;
+  const canOpenProfile = !!post.userId && !!onOpenProfile;
 
   useEffect(() => {
     const c = new AbortController();
@@ -159,18 +162,32 @@ export default function PostDetail({
               </span>
             )}
             <div className="flex items-center gap-2">
-              <PersonIcon size={32} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-[14px] font-semibold text-text">
-                    {post.nickname}
-                  </span>
+              <button
+                type="button"
+                onClick={() =>
+                  canOpenProfile &&
+                  onOpenProfile!(post.userId!, post.nickname)
+                }
+                disabled={!canOpenProfile}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-default"
+              >
+                <PersonIcon size={32} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`truncate text-[14px] font-semibold text-text ${
+                        canOpenProfile ? "hover:underline" : ""
+                      }`}
+                    >
+                      {post.nickname}
+                    </span>
+                  </div>
+                  <div className="text-[12px] text-muted">
+                    {timeAgo(post.createdAt)}
+                    {followerCount > 0 && ` · 팔로워 ${followerCount}`}
+                  </div>
                 </div>
-                <div className="text-[12px] text-muted">
-                  {timeAgo(post.createdAt)}
-                  {followerCount > 0 && ` · 팔로워 ${followerCount}`}
-                </div>
-              </div>
+              </button>
               {canFollow && (
                 <FollowButton
                   authorId={post.userId!}

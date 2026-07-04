@@ -6,6 +6,7 @@ import { timeAgo } from "@/lib/format";
 import PostDetail from "./PostDetail";
 import WritePost from "./WritePost";
 import LikeButton from "./LikeButton";
+import UserProfile from "./UserProfile";
 
 export default function Community({
   user,
@@ -19,6 +20,11 @@ export default function Community({
   const [err, setErr] = useState<string | null>(null);
   const [detail, setDetail] = useState<Post | null>(null);
   const [writing, setWriting] = useState(false);
+  const [profile, setProfile] = useState<{ id: string; username: string } | null>(
+    null,
+  );
+  const openProfile = (id: string, username: string) =>
+    setProfile({ id, username });
 
   const load = useCallback(async () => {
     setErr(null);
@@ -91,7 +97,12 @@ export default function Community({
           />
         ) : (
           posts.map((p) => (
-            <PostCard key={p.id} post={p} onOpen={() => setDetail(p)} />
+            <PostCard
+              key={p.id}
+              post={p}
+              onOpen={() => setDetail(p)}
+              onOpenProfile={openProfile}
+            />
           ))
         )}
       </main>
@@ -116,10 +127,20 @@ export default function Community({
           onClose={() => setDetail(null)}
           onChanged={load}
           onFollowChange={onFollowChange}
+          onOpenProfile={openProfile}
           onDeleted={(id) => {
             setDetail(null);
             setPosts((cur) => (cur ? cur.filter((p) => p.id !== id) : cur));
           }}
+        />
+      )}
+      {profile && (
+        <UserProfile
+          authorId={profile.id}
+          username={profile.username}
+          user={user}
+          onClose={() => setProfile(null)}
+          onFollowChange={onFollowChange}
         />
       )}
       {writing && (
@@ -137,7 +158,16 @@ export default function Community({
   );
 }
 
-function PostCard({ post, onOpen }: { post: Post; onOpen: () => void }) {
+function PostCard({
+  post,
+  onOpen,
+  onOpenProfile,
+}: {
+  post: Post;
+  onOpen: () => void;
+  onOpenProfile?: (id: string, username: string) => void;
+}) {
+  const canProfile = !!post.userId && !!onOpenProfile;
   return (
     <div
       onClick={onOpen}
@@ -157,14 +187,26 @@ function PostCard({ post, onOpen }: { post: Post; onOpen: () => void }) {
         )}
         <span className="text-[12px] text-muted">{timeAgo(post.createdAt)}</span>
       </div>
-      <div className="mt-2 flex items-center gap-1.5 text-[13px] text-muted">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (canProfile) onOpenProfile!(post.userId!, post.nickname);
+        }}
+        disabled={!canProfile}
+        className="mt-2 flex items-center gap-1.5 text-[13px] text-muted disabled:cursor-default"
+      >
         <span className="grid h-5 w-5 place-items-center rounded-full bg-bg-soft">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z" />
           </svg>
         </span>
-        <span className="font-medium text-text">{post.nickname}</span>
-      </div>
+        <span
+          className={`font-medium text-text ${canProfile ? "hover:underline" : ""}`}
+        >
+          {post.nickname}
+        </span>
+      </button>
       <h3 className="mt-1.5 text-[16px] font-bold leading-snug text-text">
         {post.title}
       </h3>
