@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { translateMany } from "@/lib/translate";
+import { isGoogleNewsUrl, resolveGoogleNews } from "@/lib/gnews";
 
 export const runtime = "nodejs";
 export const preferredRegion = "icn1";
@@ -187,7 +188,21 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, reason: "bad-url" });
   }
-  if (!/^https?:$/.test(u.protocol) || !allowed(u.hostname)) {
+  // 구글뉴스 리다이렉트면 실제 기사 URL로 해석 (해석되면 화이트리스트 우회 — 집계 출처라 신뢰)
+  if (isGoogleNewsUrl(u.toString())) {
+    const real = await resolveGoogleNews(u.toString());
+    if (!real) {
+      return NextResponse.json({ ok: false, reason: "resolve-failed" });
+    }
+    try {
+      u = new URL(real);
+    } catch {
+      return NextResponse.json({ ok: false, reason: "bad-url" });
+    }
+    if (!/^https?:$/.test(u.protocol)) {
+      return NextResponse.json({ ok: false, reason: "not-allowed" });
+    }
+  } else if (!/^https?:$/.test(u.protocol) || !allowed(u.hostname)) {
     return NextResponse.json({ ok: false, reason: "not-allowed" });
   }
 

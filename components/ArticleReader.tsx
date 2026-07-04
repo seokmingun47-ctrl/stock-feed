@@ -51,7 +51,7 @@ export default function ArticleReader({
 
   const translated = translate && source.region === "global";
   const isSocial = source.id === "truthsocial";
-  const isAggregator = !!source.hidden; // 구글뉴스 등 집계 링크 — 추출 대신 요약 표시
+  const isAggregator = !!source.hidden; // 구글뉴스 등 집계 — 실제 URL 해석 후 추출 시도
 
   // 안전장치: 집계(구글뉴스) 헤드라인이 영어면 즉시 한국어로 번역
   useEffect(() => {
@@ -67,23 +67,23 @@ export default function ArticleReader({
     }
     setKoTitle(article.title);
   }, [article.title, isAggregator]);
-  const noExtract = isSocial || isAggregator;
   const meta = { title: article.title, sourceId: source.id, image: article.image };
 
-  // 본문(번역) — 소셜/집계는 추출 없이 텍스트 그대로
+  // 본문(번역) — 소셜은 추출 없이 텍스트 그대로. 집계(구글뉴스)는 실제 URL 해석 후 추출.
   useEffect(() => {
-    if (noExtract) {
+    if (isSocial) {
       setData({ ok: true, paragraphs: [] });
       return;
     }
     const c = new AbortController();
-    const lang = translated ? "&lang=ko" : "";
+    // 집계는 항상 한국어
+    const lang = translated || isAggregator ? "&lang=ko" : "";
     fetch(`/api/article?url=${encodeURIComponent(article.link)}${lang}`, { signal: c.signal })
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => setData({ ok: false, reason: "error" }));
     return () => c.abort();
-  }, [article.link, translated, noExtract]);
+  }, [article.link, translated, isSocial, isAggregator]);
 
   // 좋아요/댓글 상태
   useEffect(() => {
@@ -184,11 +184,19 @@ export default function ArticleReader({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={image as string} alt="" onError={() => setImgOk(false)} className="mt-4 w-full rounded-xl object-cover" />
             )}
-            {isAggregator ? (
+            {isSocial ? null : !data ? (
+              <Loading message="본문을 가져와 한국어로 번역하는 중…" />
+            ) : data.ok && data.paragraphs && data.paragraphs.length > 0 ? (
+              <div className="mt-5 space-y-4">
+                {data.paragraphs.map((p, i) => (
+                  <p key={i} className="text-[16px] leading-[1.75] text-text">{p}</p>
+                ))}
+              </div>
+            ) : isAggregator ? (
               <div className="mt-5">
                 <p className="text-[14px] leading-relaxed text-muted">
-                  구글 뉴스가 모은 외부 매체 속보예요. 헤드라인만 제공되니 전체 기사는
-                  원문에서 확인하세요.
+                  이 기사는 앱 안에서 본문을 가져오지 못했어요. 원문에서 전체
+                  기사를 볼 수 있어요.
                 </p>
                 <a
                   href={article.link}
@@ -199,19 +207,9 @@ export default function ArticleReader({
                   기사 전체 보기 ↗
                 </a>
               </div>
-            ) : !isSocial ? (
-              !data ? (
-                <Loading message={translated ? "본문을 가져와 한국어로 번역하는 중…" : "본문을 가져오는 중…"} />
-              ) : data.ok ? (
-                <div className="mt-5 space-y-4">
-                  {data.paragraphs!.map((p, i) => (
-                    <p key={i} className="text-[16px] leading-[1.75] text-text">{p}</p>
-                  ))}
-                </div>
-              ) : (
-                <Fallback summary={article.summary} link={article.link} />
-              )
-            ) : null}
+            ) : (
+              <Fallback summary={article.summary} link={article.link} />
+            )}
           </article>
 
           {/* 좋아요 / 댓글 요약 바 */}
