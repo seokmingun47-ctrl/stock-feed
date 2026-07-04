@@ -46,11 +46,27 @@ export default function ArticleReader({
   const [stateLoaded, setStateLoaded] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [koTitle, setKoTitle] = useState(article.title);
   const listEnd = useRef<HTMLDivElement>(null);
 
   const translated = translate && source.region === "global";
   const isSocial = source.id === "truthsocial";
   const isAggregator = !!source.hidden; // 구글뉴스 등 집계 링크 — 추출 대신 요약 표시
+
+  // 안전장치: 집계(구글뉴스) 헤드라인이 영어면 즉시 한국어로 번역
+  useEffect(() => {
+    if (isAggregator && !/[가-힣]/.test(article.title)) {
+      const c = new AbortController();
+      fetch(`/api/translate?q=${encodeURIComponent(article.title)}`, {
+        signal: c.signal,
+      })
+        .then((r) => r.json())
+        .then((d) => d.text && setKoTitle(d.text))
+        .catch(() => {});
+      return () => c.abort();
+    }
+    setKoTitle(article.title);
+  }, [article.title, isAggregator]);
   const noExtract = isSocial || isAggregator;
   const meta = { title: article.title, sourceId: source.id, image: article.image };
 
@@ -155,7 +171,9 @@ export default function ArticleReader({
                 {article.title}
               </p>
             ) : (
-              <h1 className="text-[22px] font-extrabold leading-snug text-text">{title}</h1>
+              <h1 className="text-[22px] font-extrabold leading-snug text-text">
+                {isAggregator ? koTitle : title}
+              </h1>
             )}
             {translated && (
               <div className="mt-2 flex items-center gap-1.5 text-[12px] text-accent">
