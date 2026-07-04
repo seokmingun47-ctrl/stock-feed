@@ -35,20 +35,23 @@ export async function GET(req: NextRequest) {
   // 상한을 넉넉히 — 단일 소스 필터 시 그 소스 기사가 누락되지 않도록.
   const top = articles.slice(0, 500);
 
-  // lang=ko 이면 해외(영문) 기사의 제목·요약을 한국어로 번역.
-  if (req.nextUrl.searchParams.get("lang") === "ko") {
-    const globals = top.filter(
-      (a) => SOURCE_MAP[a.sourceId]?.region === "global",
-    );
-    if (globals.length) {
-      const texts: string[] = [];
-      for (const a of globals) texts.push(a.title, a.summary || "");
-      const tr = await translateMany(texts);
-      let i = 0;
-      for (const a of globals) {
-        a.title = tr[i++] || a.title;
-        a.summary = tr[i++] || a.summary;
-      }
+  // 번역 대상: 집계(hidden, 예 구글뉴스)는 토글과 무관하게 항상 한국어,
+  // 일반 해외(global)는 lang=ko 일 때만.
+  const langKo = req.nextUrl.searchParams.get("lang") === "ko";
+  const targets = top.filter((a) => {
+    const s = SOURCE_MAP[a.sourceId];
+    if (!s) return false;
+    if (s.hidden) return true;
+    return langKo && s.region === "global";
+  });
+  if (targets.length) {
+    const texts: string[] = [];
+    for (const a of targets) texts.push(a.title, a.summary || "");
+    const tr = await translateMany(texts);
+    let i = 0;
+    for (const a of targets) {
+      a.title = tr[i++] || a.title;
+      a.summary = tr[i++] || a.summary;
     }
   }
 
