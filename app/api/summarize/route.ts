@@ -4,23 +4,30 @@ export const runtime = "nodejs";
 export const preferredRegion = "icn1";
 export const maxDuration = 30;
 
-// 무료 티어에서 텍스트가 되는 Gemini 모델들 (앞에서부터 시도, mealkit-snap과 동일 계정 기준)
+// 무료 티어에서 텍스트가 되는 Gemini 모델들 (앞에서부터 시도).
+// ⚠️ 요약 정확도를 위해 성능 좋은 2.5-flash를 먼저 — lite 모델은 짧은 본문에서
+// 없는 내용을 지어내는(환각) 경향이 있어 뒤로 뺌. lite는 한도 초과 시 폴백용.
 const MODELS = [
-  "gemini-flash-lite-latest",
   "gemini-2.5-flash",
   "gemini-flash-latest",
+  "gemini-flash-lite-latest",
   "gemini-2.5-flash-lite",
 ];
 
 const RETRY_DEADLINE_MS = 20000;
 
 function buildPrompt(title: string, text: string): string {
-  return `당신은 증권·경제 뉴스 요약 도우미입니다. 아래 뉴스 기사를 한국어로 핵심만 간결하게 요약하세요.
+  return `당신은 증권·경제 뉴스 요약 도우미입니다. 아래 [본문]에 실제로 적힌 내용만 근거로 한국어 핵심 요약을 만드세요.
 
-규칙:
-- 가장 중요한 사실 3~5개를 뽑아 각각 한 문장(공백 포함 90자 이내)으로.
+⚠️ 매우 중요 — 환각 금지:
+- 오직 [본문]에 실제로 등장하는 사실만 사용하세요. 본문에 없는 기업명·인물·수치·사건은 절대 추가하지 마세요.
+- 당신이 이미 알고 있는 외부 지식으로 내용을 보완하거나 추측하지 마세요.
+- 기업명·숫자·날짜를 바꾸지 말고 본문 그대로 쓰세요. (예: 본문이 '삼성전자'면 다른 회사로 바꾸지 말 것)
+- 본문이 짧으면 요약도 짧아도 됩니다. 억지로 늘리지 마세요.
+
+작성 규칙:
+- 본문에서 가장 중요한 사실 2~5개를 뽑아 각각 한 문장(공백 포함 90자 이내)으로.
 - 숫자·기업명·핵심 원인/결과 위주. 광고·구독 안내·기자명·저작권 문구는 제외.
-- 기사에 없는 내용은 지어내지 말 것.
 - 반드시 아래 JSON 형식으로만 응답: {"summary": ["첫 번째 핵심", "두 번째 핵심", ...]}
 
 [제목]
@@ -81,7 +88,7 @@ export async function POST(req: NextRequest) {
   const requestBody = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: buildPrompt(title, text) }] }],
     generationConfig: {
-      temperature: 0.3,
+      temperature: 0.1,
       responseMimeType: "application/json",
     },
   });
