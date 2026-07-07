@@ -16,6 +16,30 @@ interface ReaderData {
   reason?: string;
 }
 
+// 타임아웃 있는 POST (AI 호출이 오래 걸리면 끊고 재시도 유도)
+async function postJson(
+  url: string,
+  payload: unknown,
+  ms = 33000,
+): Promise<{ ok: boolean; reason?: string; timeout?: boolean; [k: string]: unknown }> {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: ac.signal,
+    });
+    return await res.json();
+  } catch (e) {
+    const timeout = e instanceof DOMException && e.name === "AbortError";
+    return { ok: false, timeout, reason: timeout ? "timeout" : "network" };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 interface StockPick {
   name: string;
   ticker: string;
@@ -170,62 +194,46 @@ export default function ArticleReader({
     if (summarizing || !canSummarize) return;
     setSummarizing(true);
     setSummaryErr("");
-    try {
-      const res = await fetch("/api/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, text: bodyText }),
-      });
-      const d = await res.json();
-      if (d.ok) setSummary(d.summary);
-      else setSummaryErr(d.reason || "요약에 실패했어요.");
-    } catch {
-      setSummaryErr("네트워크 오류예요.");
-    } finally {
-      setSummarizing(false);
-    }
+    const d = await postJson("/api/summarize", { title, text: bodyText });
+    if (d.ok) setSummary((d.summary as string[]) ?? []);
+    else if (d.timeout)
+      setSummaryErr("AI가 잠시 혼잡해요. 다시 시도해 주세요.");
+    else setSummaryErr(d.reason || "요약에 실패했어요.");
+    setSummarizing(false);
   };
 
   const analyze = async () => {
     if (analyzing || !canSummarize) return;
     setAnalyzing(true);
     setStocksErr("");
-    try {
-      const res = await fetch("/api/stocks", {
+    const d = await postJson("/api/stocks", { title, text: bodyText });
+    if (d.ok) {
+      const picks = (d.stocks as StockPick[]) ?? [];
+      setStocks(picks);
+      // 시세는 별도 로드 후 병합 (실패해도 종목은 그대로 표시)
+      fetch("/api/stock-quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, text: bodyText }),
-      });
-      const d = await res.json();
-      if (d.ok) {
-        setStocks(d.stocks);
-        // 시세는 별도 로드 후 병합 (실패해도 종목은 그대로 표시)
-        const picks: StockPick[] = d.stocks;
-        fetch("/api/stock-quote", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stocks: picks.map((s) => ({ name: s.name, ticker: s.ticker })),
-          }),
+        body: JSON.stringify({
+          stocks: picks.map((s) => ({ name: s.name, ticker: s.ticker })),
+        }),
+      })
+        .then((r) => r.json())
+        .then((qd) => {
+          if (!qd.ok || !Array.isArray(qd.quotes)) return;
+          setStocks((prev) =>
+            prev
+              ? prev.map((s, i) => (qd.quotes[i] ? { ...s, ...qd.quotes[i] } : s))
+              : prev,
+          );
         })
-          .then((r) => r.json())
-          .then((qd) => {
-            if (!qd.ok || !Array.isArray(qd.quotes)) return;
-            setStocks((prev) =>
-              prev
-                ? prev.map((s, i) =>
-                    qd.quotes[i] ? { ...s, ...qd.quotes[i] } : s,
-                  )
-                : prev,
-            );
-          })
-          .catch(() => {});
-      } else setStocksErr(d.reason || "분석에 실패했어요.");
-    } catch {
-      setStocksErr("네트워크 오류예요.");
-    } finally {
-      setAnalyzing(false);
+        .catch(() => {});
+    } else if (d.timeout) {
+      setStocksErr("AI가 잠시 혼잡해요. 다시 시도해 주세요.");
+    } else {
+      setStocksErr(d.reason || "분석에 실패했어요.");
     }
+    setAnalyzing(false);
   };
 
   const send = async () => {

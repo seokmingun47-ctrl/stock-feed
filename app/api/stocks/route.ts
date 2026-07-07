@@ -4,15 +4,16 @@ export const runtime = "nodejs";
 export const preferredRegion = "icn1";
 export const maxDuration = 30;
 
-// 요약과 동일한 무료 티어 텍스트 모델 (정확도 위해 2.5-flash 먼저, lite는 폴백)
+// 속도 우선 (2.5-flash는 무료 한도 429로 즉시 실패해 느리게 함 → 뒤로)
 const MODELS = [
-  "gemini-2.5-flash",
-  "gemini-flash-latest",
   "gemini-flash-lite-latest",
+  "gemini-flash-latest",
   "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
 ];
 
-const RETRY_DEADLINE_MS = 20000;
+const RETRY_DEADLINE_MS = 24000;
+const PER_CALL_MS = 10000;
 
 function buildPrompt(title: string, text: string): string {
   return `당신은 증권 애널리스트입니다. 아래 [본문]을 분석해, 이 뉴스와 직접 관련되거나 뚜렷하게 영향을 받을 상장 종목을 추립니다.
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: "bad-json" }, { status: 400 });
   }
   const title = String(body.title ?? "").slice(0, 300);
-  const text = String(body.text ?? "").trim().slice(0, 8000);
+  const text = String(body.text ?? "").trim().slice(0, 4000);
   if (text.length < 120) {
     return NextResponse.json(
       { ok: false, reason: "분석할 본문이 충분하지 않아요." },
@@ -104,7 +105,11 @@ export async function POST(req: NextRequest) {
 
   const requestBody = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: buildPrompt(title, text) }] }],
-    generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: "application/json",
+      maxOutputTokens: 900,
+    },
   });
 
   const startedAt = Date.now();
@@ -114,27 +119,36 @@ export async function POST(req: NextRequest) {
 
   while (!data && !authFailed && Date.now() - startedAt < RETRY_DEADLINE_MS) {
     for (const model of MODELS) {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: requestBody,
-        },
-      );
-      lastStatus = res.status;
-      if (res.ok) {
-        data = await res.json();
-        break;
-      }
-      if (res.status === 400 || res.status === 403) {
-        authFailed = true;
-        break;
-      }
       if (Date.now() - startedAt >= RETRY_DEADLINE_MS) break;
+      const ac = new AbortController();
+      const tt = setTimeout(() => ac.abort(), PER_CALL_MS);
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: requestBody,
+            signal: ac.signal,
+          },
+        );
+        lastStatus = res.status;
+        if (res.ok) {
+          data = await res.json();
+          break;
+        }
+        if (res.status === 400 || res.status === 403) {
+          authFailed = true;
+          break;
+        }
+      } catch {
+        /* 타임아웃/네트워크 → 다음 모델 */
+      } finally {
+        clearTimeout(tt);
+      }
     }
     if (!data && !authFailed && Date.now() - startedAt < RETRY_DEADLINE_MS) {
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
 

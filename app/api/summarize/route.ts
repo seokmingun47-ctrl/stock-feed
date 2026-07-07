@@ -5,16 +5,18 @@ export const preferredRegion = "icn1";
 export const maxDuration = 30;
 
 // 무료 티어에서 텍스트가 되는 Gemini 모델들 (앞에서부터 시도).
-// ⚠️ 요약 정확도를 위해 성능 좋은 2.5-flash를 먼저 — lite 모델은 짧은 본문에서
-// 없는 내용을 지어내는(환각) 경향이 있어 뒤로 뺌. lite는 한도 초과 시 폴백용.
+// ⚠️ 속도 우선 정렬: flash-lite-latest가 보통 1~3초로 가장 빠르고 요약도 정확.
+// 2.5-flash는 이 계정에서 무료 한도(429)로 즉시 실패 → 맨 뒤 폴백.
+// (요약 입력은 200자 이상 실제 기사 본문이라 lite도 환각 없이 잘 그라운딩됨)
 const MODELS = [
-  "gemini-2.5-flash",
-  "gemini-flash-latest",
   "gemini-flash-lite-latest",
+  "gemini-flash-latest",
   "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
 ];
 
-const RETRY_DEADLINE_MS = 20000;
+const RETRY_DEADLINE_MS = 24000;
+const PER_CALL_MS = 10000; // 한 모델이 이 시간 넘게 끌면 포기하고 다음 모델
 
 function buildPrompt(title: string, text: string): string {
   return `당신은 증권·경제 뉴스 요약 도우미입니다. 아래 [본문]에 실제로 적힌 내용만 근거로 한국어 핵심 요약을 만드세요.
@@ -77,7 +79,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: "bad-json" }, { status: 400 });
   }
   const title = String(body.title ?? "").slice(0, 300);
-  const text = String(body.text ?? "").trim().slice(0, 8000);
+  // 요약은 앞부분이 핵심 → 입력을 3500자로 제한(생성 속도↑)
+  const text = String(body.text ?? "").trim().slice(0, 3500);
   if (text.length < 120) {
     return NextResponse.json(
       { ok: false, reason: "요약할 본문이 충분하지 않아요." },
@@ -90,6 +93,7 @@ export async function POST(req: NextRequest) {
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json",
+      maxOutputTokens: 800, // 짧은 불릿이라 출력 상한 → 생성 속도↑
     },
   });
 
@@ -100,27 +104,37 @@ export async function POST(req: NextRequest) {
 
   while (!data && !authFailed && Date.now() - startedAt < RETRY_DEADLINE_MS) {
     for (const model of MODELS) {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: requestBody,
-        },
-      );
-      lastStatus = res.status;
-      if (res.ok) {
-        data = await res.json();
-        break;
-      }
-      if (res.status === 400 || res.status === 403) {
-        authFailed = true;
-        break;
-      }
       if (Date.now() - startedAt >= RETRY_DEADLINE_MS) break;
+      // 모델별 호출 타임아웃 — 한 모델이 끌면 abort 후 다음 모델로
+      const ac = new AbortController();
+      const tt = setTimeout(() => ac.abort(), PER_CALL_MS);
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: requestBody,
+            signal: ac.signal,
+          },
+        );
+        lastStatus = res.status;
+        if (res.ok) {
+          data = await res.json();
+          break;
+        }
+        if (res.status === 400 || res.status === 403) {
+          authFailed = true;
+          break;
+        }
+      } catch {
+        /* 타임아웃/네트워크 → 다음 모델 */
+      } finally {
+        clearTimeout(tt);
+      }
     }
     if (!data && !authFailed && Date.now() - startedAt < RETRY_DEADLINE_MS) {
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
 
