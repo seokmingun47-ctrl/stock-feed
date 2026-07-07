@@ -15,6 +15,14 @@ interface ReaderData {
   reason?: string;
 }
 
+interface StockPick {
+  name: string;
+  ticker: string;
+  market: string;
+  sentiment: "positive" | "negative" | "neutral";
+  reason: string;
+}
+
 function PersonIcon({ size = 26 }: { size?: number }) {
   return (
     <span className="grid shrink-0 place-items-center rounded-full bg-bg-soft text-muted" style={{ width: size, height: size }}>
@@ -50,6 +58,9 @@ export default function ArticleReader({
   const [summary, setSummary] = useState<string[] | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [summaryErr, setSummaryErr] = useState("");
+  const [stocks, setStocks] = useState<StockPick[] | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [stocksErr, setStocksErr] = useState("");
   const listEnd = useRef<HTMLDivElement>(null);
 
   const translated = translate && source.region === "global";
@@ -128,11 +139,14 @@ export default function ArticleReader({
       : "";
   const canSummarize = bodyText.trim().length >= 200;
 
-  // 기사가 바뀌면 요약 초기화
+  // 기사가 바뀌면 요약·종목분석 초기화
   useEffect(() => {
     setSummary(null);
     setSummarizing(false);
     setSummaryErr("");
+    setStocks(null);
+    setAnalyzing(false);
+    setStocksErr("");
   }, [article.link]);
 
   const summarize = async () => {
@@ -152,6 +166,26 @@ export default function ArticleReader({
       setSummaryErr("네트워크 오류예요.");
     } finally {
       setSummarizing(false);
+    }
+  };
+
+  const analyze = async () => {
+    if (analyzing || !canSummarize) return;
+    setAnalyzing(true);
+    setStocksErr("");
+    try {
+      const res = await fetch("/api/stocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, text: bodyText }),
+      });
+      const d = await res.json();
+      if (d.ok) setStocks(d.stocks);
+      else setStocksErr(d.reason || "분석에 실패했어요.");
+    } catch {
+      setStocksErr("네트워크 오류예요.");
+    } finally {
+      setAnalyzing(false);
     }
   };
 
@@ -261,6 +295,81 @@ export default function ArticleReader({
                     </ul>
                     <div className="mt-3 text-[11px] text-muted">
                       AI가 생성한 요약이라 원문과 다를 수 있어요.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AI 관련 종목 분석 */}
+            {canSummarize && (
+              <div className="mt-2.5">
+                {!stocks && (
+                  <button
+                    onClick={analyze}
+                    disabled={analyzing}
+                    className="flex items-center gap-2 rounded-full bg-[#14c38e]/15 px-4 py-2 text-[13.5px] font-bold text-[#14c38e] transition-colors hover:bg-[#14c38e]/25 disabled:opacity-70"
+                  >
+                    {analyzing ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" className="spin">
+                        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                      </svg>
+                    ) : (
+                      <ChartIcon />
+                    )}
+                    {analyzing ? "AI가 관련 종목 분석 중…" : "AI 관련 종목 분석"}
+                  </button>
+                )}
+                {stocksErr && !analyzing && (
+                  <p className="mt-2 text-[13px] text-[var(--down)]">
+                    {stocksErr}{" "}
+                    <button onClick={analyze} className="font-semibold underline">
+                      다시 시도
+                    </button>
+                  </p>
+                )}
+                {stocks && (
+                  <div className="rounded-2xl border border-border bg-bg-soft/60 p-4">
+                    <div className="mb-3 flex items-center gap-1.5 text-[13px] font-bold text-text">
+                      <ChartIcon /> AI 관련 종목
+                    </div>
+                    {stocks.length === 0 ? (
+                      <p className="text-[14px] leading-relaxed text-muted">
+                        이 뉴스와 뚜렷하게 연관된 종목을 찾지 못했어요.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {stocks.map((s, i) => (
+                          <div key={i} className="flex gap-2.5">
+                            <SentimentBadge sentiment={s.sentiment} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                <span className="text-[15px] font-bold text-text">
+                                  {s.name}
+                                </span>
+                                {s.ticker && (
+                                  <span className="text-[12px] font-medium text-muted">
+                                    {s.ticker}
+                                  </span>
+                                )}
+                                {s.market && (
+                                  <span className="rounded bg-bg px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+                                    {s.market}
+                                  </span>
+                                )}
+                              </div>
+                              {s.reason && (
+                                <p className="mt-0.5 text-[13px] leading-relaxed text-muted">
+                                  {s.reason}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 border-t border-border pt-2.5 text-[11px] leading-relaxed text-muted">
+                      AI 분석이며 투자 권유가 아니에요. 투자 판단·책임은 본인에게 있어요.
                     </div>
                   </div>
                 )}
@@ -380,6 +489,37 @@ function SparkleIcon() {
       <path d="M12 2l1.9 5.6L19.5 9.5 13.9 11.4 12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2z" />
       <path d="M19 14l.8 2.3L22 17l-2.2.7L19 20l-.8-2.3L16 17l2.2-.7L19 14z" opacity="0.7" />
     </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 3v18h18" />
+      <path d="M7 14l3.5-3.5 3 3L21 7" />
+    </svg>
+  );
+}
+
+function SentimentBadge({
+  sentiment,
+}: {
+  sentiment: "positive" | "negative" | "neutral";
+}) {
+  const map = {
+    positive: { label: "호재", color: "#14c38e", mark: "▲" },
+    negative: { label: "악재", color: "#f6465d", mark: "▼" },
+    neutral: { label: "중립", color: "#8b96ad", mark: "―" },
+  } as const;
+  const m = map[sentiment] ?? map.neutral;
+  return (
+    <span
+      className="mt-0.5 flex h-[26px] w-[46px] shrink-0 items-center justify-center gap-0.5 rounded-md text-[11px] font-bold"
+      style={{ color: m.color, backgroundColor: `${m.color}22` }}
+    >
+      <span className="text-[9px]">{m.mark}</span>
+      {m.label}
+    </span>
   );
 }
 
