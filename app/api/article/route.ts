@@ -9,7 +9,6 @@ export const maxDuration = 30;
 // SSRF 방지: 알려진 뉴스 도메인만 허용
 const ALLOWED = [
   // 해외
-  "investing.com",
   "cnbc.com",
   "bbc.co.uk",
   "bbc.com",

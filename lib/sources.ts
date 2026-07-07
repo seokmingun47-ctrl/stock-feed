@@ -88,16 +88,8 @@ export const SOURCES: Source[] = [
     color: "#003a70",
   },
   // ── 해외 🌐 ──
-  {
-    id: "investing",
-    name: "Investing.com",
-    handle: "@investingcom",
-    category: "Stock Market",
-    region: "global",
-    url: "https://www.investing.com/rss/news_25.rss",
-    domain: "investing.com",
-    color: "#d6a012",
-  },
+  // (Investing.com 제거 — 사이트가 봇 차단(Cloudflare)으로 본문·요약을 전혀 안 줘
+  //  인앱에서 못 읽고 항상 원문 이동만 됨. 2026-07-04)
   {
     id: "cnbc",
     name: "CNBC Markets",
