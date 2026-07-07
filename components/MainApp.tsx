@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Author, User } from "@/lib/community";
 import Feed from "./Feed";
 import Community from "./Community";
+import EditProfile from "./EditProfile";
 
 type Tab = "news" | "board";
 
@@ -12,14 +13,17 @@ export default function MainApp({
   initialFollowed,
   initialTranslate,
   onLogout,
+  onUserUpdated,
 }: {
   user: User;
   initialFollowed: string[];
   initialTranslate: boolean;
   onLogout: () => void;
+  onUserUpdated: (u: User) => void;
 }) {
   const [tab, setTab] = useState<Tab>("news");
   const [authors, setAuthors] = useState<Author[]>([]);
+  const [editing, setEditing] = useState(false);
 
   // 내가 팔로우한 유저(뉴스 채널) 목록 — 뉴스탭 상단 칩
   const reloadAuthors = useCallback(() => {
@@ -33,6 +37,8 @@ export default function MainApp({
     reloadAuthors();
   }, [reloadAuthors]);
 
+  const openEdit = useCallback(() => setEditing(true), []);
+
   return (
     <div>
       {/* 뉴스 피드는 상태 보존 위해 항상 마운트, 숨김 처리 */}
@@ -44,10 +50,27 @@ export default function MainApp({
           authors={authors}
           reloadAuthors={reloadAuthors}
           onLogout={onLogout}
+          onEditProfile={openEdit}
         />
       </div>
       {tab === "board" && (
-        <Community user={user} onFollowChange={reloadAuthors} />
+        <Community
+          user={user}
+          onFollowChange={reloadAuthors}
+          onEditProfile={openEdit}
+        />
+      )}
+
+      {editing && (
+        <EditProfile
+          user={user}
+          onClose={() => setEditing(false)}
+          onSaved={(u) => {
+            onUserUpdated(u);
+            reloadAuthors();
+            setEditing(false);
+          }}
+        />
       )}
 
       {/* 하단 탭 네비게이션 */}

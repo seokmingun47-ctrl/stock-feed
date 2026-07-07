@@ -99,6 +99,7 @@ export default function Home() {
       initialFollowed={followed}
       initialTranslate={translate}
       onLogout={handleLogout}
+      onUserUpdated={setUser}
     />
   );
 }

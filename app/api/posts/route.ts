@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
-import { cleanPostInput, rowToPost } from "@/lib/community";
+import { cleanPostInput, rowToPost, attachAuthorProfiles } from "@/lib/community";
 import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  await attachAuthorProfiles(db, posts);
   return NextResponse.json({ ok: true, posts });
 }
 
@@ -102,10 +103,11 @@ export async function POST(req: NextRequest) {
     .insert({ ...clean, nickname: user.username, user_id: user.id })
     .select("*, community_comments(count)")
     .single();
-  // kind 컬럼 미설정(마이그레이션 전)이면 kind 없이 재시도 → 자유글로 저장
-  if (error && /kind/i.test(error.message)) {
-    const { kind: _kind, ...rest } = clean;
+  // kind/images 컬럼 미설정(마이그레이션 전)이면 해당 컬럼 없이 재시도
+  if (error && /kind|images/i.test(error.message)) {
+    const { kind: _kind, images: _images, ...rest } = clean;
     void _kind;
+    void _images;
     ({ data, error } = await db
       .from("community_posts")
       .insert({ ...rest, nickname: user.username, user_id: user.id })

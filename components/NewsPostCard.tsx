@@ -3,6 +3,7 @@
 import type { Post } from "@/lib/community";
 import { timeAgo } from "@/lib/format";
 import LikeButton from "./LikeButton";
+import Avatar from "./Avatar";
 
 // 유저 뉴스 카드 (유저 채널 / 프로필 공용)
 export default function NewsPostCard({
@@ -20,18 +21,37 @@ export default function NewsPostCard({
       className="block w-full cursor-pointer border-b border-border px-4 py-3.5 text-left transition-colors hover:bg-bg-soft active:bg-bg-soft"
     >
       <div className="flex items-center gap-1.5 text-[12px] text-muted">
+        <Avatar
+          name={post.nickname}
+          avatarUrl={post.authorAvatar}
+          color={post.authorColor}
+          size={20}
+        />
         <span className="font-medium text-text">{post.nickname}</span>
         <span>·</span>
         <span>{timeAgo(post.createdAt)}</span>
       </div>
-      <h3 className="mt-1.5 text-[16px] font-bold leading-snug text-text">
-        {post.title}
-      </h3>
-      {post.body && (
-        <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[14px] leading-relaxed text-muted">
-          {post.body}
-        </p>
-      )}
+      <div className="mt-1.5 flex gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[16px] font-bold leading-snug text-text">
+            {post.title}
+          </h3>
+          {post.body && (
+            <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[14px] leading-relaxed text-muted">
+              {post.body}
+            </p>
+          )}
+        </div>
+        {post.images.length > 0 && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={post.images[0]}
+            alt=""
+            loading="lazy"
+            className="h-[76px] w-[76px] shrink-0 rounded-xl object-cover"
+          />
+        )}
+      </div>
       {post.tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {post.tags.map((t) => (

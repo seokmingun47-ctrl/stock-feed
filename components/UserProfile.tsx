@@ -5,6 +5,7 @@ import type { Post, User } from "@/lib/community";
 import NewsPostCard from "./NewsPostCard";
 import FollowButton from "./FollowButton";
 import PostDetail from "./PostDetail";
+import Avatar from "./Avatar";
 
 // 유저 프로필/채널 — 작성자 이름을 누르면 열림. 그 유저의 뉴스 + 팔로우.
 export default function UserProfile({
@@ -13,15 +14,20 @@ export default function UserProfile({
   user,
   onClose,
   onFollowChange,
+  onEditProfile,
 }: {
   authorId: string;
   username: string;
   user: User;
   onClose: () => void;
   onFollowChange?: () => void;
+  onEditProfile?: () => void;
 }) {
   const [news, setNews] = useState<Post[] | null>(null);
   const [name, setName] = useState(username);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [profileColor, setProfileColor] = useState<string | null>(null);
+  const [bio, setBio] = useState<string | null>(null);
   const [following, setFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
   const [detail, setDetail] = useState<Post | null>(null);
@@ -34,6 +40,9 @@ export default function UserProfile({
         if (d.ok) {
           setNews(d.news ?? []);
           setName(d.author?.username ?? username);
+          setAvatarUrl(d.author?.avatarUrl ?? null);
+          setProfileColor(d.author?.profileColor ?? null);
+          setBio(d.author?.bio ?? null);
           setFollowing(!!d.following);
           setFollowerCount(Number(d.author?.followerCount ?? 0));
         } else {
@@ -59,8 +68,6 @@ export default function UserProfile({
     };
   }, [onClose]);
 
-  const initial = name.slice(0, 1).toUpperCase();
-
   return (
     <div className="reader-enter fixed inset-0 z-[55] flex flex-col bg-bg">
       <div className="mx-auto flex min-h-0 w-full max-w-[600px] flex-1 flex-col">
@@ -79,34 +86,64 @@ export default function UserProfile({
 
         <div className="flex-1 overflow-y-auto">
           {/* 프로필 카드 */}
-          <div className="flex items-center gap-3.5 border-b-[6px] border-bg-soft px-4 py-5">
-            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#7b5cff] to-[#18b6e6] text-[26px] font-black text-white">
-              {initial}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[19px] font-extrabold text-text">
-                {name}
+          <div className="border-b-[6px] border-bg-soft">
+            {/* 대표 색상 배너 */}
+            <div
+              className="h-16 w-full"
+              style={{
+                background:
+                  profileColor ||
+                  "linear-gradient(135deg,#7b5cff33,#18b6e633)",
+              }}
+            />
+            <div className="px-4 pb-5">
+              <div className="-mt-9 flex items-end justify-between">
+                <span className="rounded-full border-4 border-bg">
+                  <Avatar
+                    name={name}
+                    avatarUrl={avatarUrl}
+                    color={profileColor}
+                    size={72}
+                  />
+                </span>
+                <div className="mb-1">
+                  {isMe ? (
+                    onEditProfile && (
+                      <button
+                        onClick={onEditProfile}
+                        className="rounded-full border border-border px-4 py-1.5 text-[13px] font-bold text-text hover:bg-bg-soft"
+                      >
+                        프로필 편집
+                      </button>
+                    )
+                  ) : (
+                    <FollowButton
+                      authorId={authorId}
+                      initialFollowing={following}
+                      onChange={(f) => {
+                        setFollowing(f);
+                        setFollowerCount((c) => Math.max(0, c + (f ? 1 : -1)));
+                        onFollowChange?.();
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="mt-2.5 flex items-center gap-1.5">
+                <span className="text-[19px] font-extrabold text-text">{name}</span>
                 {isMe && (
-                  <span className="ml-1.5 text-[12px] font-semibold text-muted">
-                    (나)
-                  </span>
+                  <span className="text-[12px] font-semibold text-muted">(나)</span>
                 )}
               </div>
-              <div className="mt-0.5 text-[13px] text-muted">
+              {bio && (
+                <p className="mt-1 whitespace-pre-wrap text-[14px] leading-relaxed text-text">
+                  {bio}
+                </p>
+              )}
+              <div className="mt-1.5 text-[13px] text-muted">
                 유저 뉴스 {news?.length ?? 0}건 · 팔로워 {followerCount}
               </div>
             </div>
-            {!isMe && (
-              <FollowButton
-                authorId={authorId}
-                initialFollowing={following}
-                onChange={(f) => {
-                  setFollowing(f);
-                  setFollowerCount((c) => Math.max(0, c + (f ? 1 : -1)));
-                  onFollowChange?.();
-                }}
-              />
-            )}
           </div>
 
           {/* 뉴스 목록 */}

@@ -50,6 +50,7 @@ export default function ManageSheet({
   onChange,
   onClose,
   onLogout,
+  onEditProfile,
 }: {
   followed: string[];
   minFollow?: number;
@@ -57,6 +58,7 @@ export default function ManageSheet({
   onChange: (next: string[]) => void;
   onClose: () => void;
   onLogout?: () => void;
+  onEditProfile?: () => void;
 }) {
   const [warn, setWarn] = useState(false);
   const atMin = followed.length <= minFollow;
@@ -100,6 +102,22 @@ export default function ManageSheet({
           <div className="mx-4 mt-3 rounded-lg bg-accent/15 px-3 py-2 text-center text-[13px] font-medium text-accent">
             최소 {minFollow}개는 팔로우해야 해요
           </div>
+        )}
+
+        {onEditProfile && (
+          <button
+            onClick={onEditProfile}
+            className="flex w-full items-center gap-2 border-b border-border px-4 py-3.5 text-left hover:bg-bg-soft"
+          >
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-accent/15 text-accent">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
+              </svg>
+            </span>
+            <span className="flex-1 text-[15px] font-bold text-text">프로필 편집</span>
+            <span className="text-[12px] text-muted">사진 · 색상 · 소개</span>
+          </button>
         )}
 
         <div className="px-4 pb-1 pt-4 text-[13px] font-semibold uppercase tracking-wide text-muted">

@@ -7,13 +7,16 @@ import PostDetail from "./PostDetail";
 import WritePost from "./WritePost";
 import LikeButton from "./LikeButton";
 import UserProfile from "./UserProfile";
+import Avatar from "./Avatar";
 
 export default function Community({
   user,
   onFollowChange,
+  onEditProfile,
 }: {
   user: User;
   onFollowChange?: () => void;
+  onEditProfile?: () => void;
 }) {
   const [sort, setSort] = useState<"latest" | "popular">("latest");
   const [posts, setPosts] = useState<Post[] | null>(null);
@@ -141,6 +144,7 @@ export default function Community({
           user={user}
           onClose={() => setProfile(null)}
           onFollowChange={onFollowChange}
+          onEditProfile={onEditProfile}
         />
       )}
       {writing && (
@@ -196,25 +200,39 @@ function PostCard({
         disabled={!canProfile}
         className="mt-2 flex items-center gap-1.5 text-[13px] text-muted disabled:cursor-default"
       >
-        <span className="grid h-5 w-5 place-items-center rounded-full bg-bg-soft">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z" />
-          </svg>
-        </span>
+        <Avatar
+          name={post.nickname}
+          avatarUrl={post.authorAvatar}
+          color={post.authorColor}
+          size={20}
+        />
         <span
           className={`font-medium text-text ${canProfile ? "hover:underline" : ""}`}
         >
           {post.nickname}
         </span>
       </button>
-      <h3 className="mt-1.5 text-[16px] font-bold leading-snug text-text">
-        {post.title}
-      </h3>
-      {post.body && (
-        <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[14px] leading-relaxed text-muted">
-          {post.body}
-        </p>
-      )}
+      <div className="mt-1.5 flex gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[16px] font-bold leading-snug text-text">
+            {post.title}
+          </h3>
+          {post.body && (
+            <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[14px] leading-relaxed text-muted">
+              {post.body}
+            </p>
+          )}
+        </div>
+        {post.images.length > 0 && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={post.images[0]}
+            alt=""
+            loading="lazy"
+            className="h-[72px] w-[72px] shrink-0 rounded-xl object-cover"
+          />
+        )}
+      </div>
       {post.tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {post.tags.map((t) => (

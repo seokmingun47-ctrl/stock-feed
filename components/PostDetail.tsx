@@ -5,6 +5,7 @@ import type { Post, Comment, User } from "@/lib/community";
 import { timeAgo } from "@/lib/format";
 import LikeButton from "./LikeButton";
 import FollowButton from "./FollowButton";
+import Avatar from "./Avatar";
 
 function PersonIcon({ size = 28 }: { size?: number }) {
   return (
@@ -171,7 +172,12 @@ export default function PostDetail({
                 disabled={!canOpenProfile}
                 className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-default"
               >
-                <PersonIcon size={32} />
+                <Avatar
+                  name={post.nickname}
+                  avatarUrl={post.authorAvatar}
+                  color={post.authorColor}
+                  size={36}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span
@@ -207,6 +213,19 @@ export default function PostDetail({
               <p className="mt-2 whitespace-pre-wrap text-[16px] leading-[1.7] text-text">
                 {post.body}
               </p>
+            )}
+            {post.images.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {post.images.map((url, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={i}
+                    src={url}
+                    alt=""
+                    className="w-full rounded-xl object-cover"
+                  />
+                ))}
+              </div>
             )}
             {post.tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">

@@ -5,6 +5,7 @@ import { SOURCES, SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
 import type { Article } from "@/lib/types";
 import type { User, NewsItem, Author } from "@/lib/community";
 import SourceAvatar from "@/components/SourceAvatar";
+import Avatar from "@/components/Avatar";
 import ArticleCard from "@/components/ArticleCard";
 import ManageSheet from "@/components/ManageSheet";
 import ArticleReader from "@/components/ArticleReader";
@@ -36,6 +37,7 @@ export default function Feed({
   authors,
   reloadAuthors,
   onLogout,
+  onEditProfile,
 }: {
   user: User;
   initialFollowed: string[];
@@ -43,6 +45,7 @@ export default function Feed({
   authors: Author[];
   reloadAuthors: () => void;
   onLogout: () => void;
+  onEditProfile: () => void;
 }) {
   const nickname = user.username;
   const [followed, setFollowed] = useState<string[]>(initialFollowed);
@@ -296,11 +299,16 @@ export default function Feed({
             </button>
             <button
               onClick={() => setManage(true)}
-              aria-label="내 소스 관리"
-              className="grid h-8 w-8 place-items-center rounded-full bg-accent text-[14px] font-bold text-white"
+              aria-label="내 계정"
+              className="ml-0.5"
               title={nickname}
             >
-              {nickname.slice(0, 1).toUpperCase()}
+              <Avatar
+                name={nickname}
+                avatarUrl={user.avatarUrl}
+                color={user.profileColor}
+                size={32}
+              />
             </button>
           </div>
         </div>
@@ -385,9 +393,13 @@ export default function Feed({
               }}
               label={a.username}
             >
-              <UserChipAvatar
-                username={a.username}
+              <Avatar
+                name={a.username}
+                avatarUrl={a.avatarUrl}
+                color={a.profileColor}
+                size={52}
                 ring={active === `user:${a.id}`}
+                badge
               />
             </Chip>
           ))}
@@ -548,6 +560,10 @@ export default function Feed({
           onChange={setFollowed}
           onClose={() => setManage(false)}
           onLogout={onLogout}
+          onEditProfile={() => {
+            setManage(false);
+            onEditProfile();
+          }}
         />
       )}
 
@@ -616,29 +632,6 @@ function PopularNewsCard({
         )}
       </div>
     </div>
-  );
-}
-
-// 유저 채널 아바타 — 이니셜 + 사람 표시 배지(뉴스 소스와 구분)
-function UserChipAvatar({
-  username,
-  ring,
-}: {
-  username: string;
-  ring: boolean;
-}) {
-  return (
-    <span
-      className="relative grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#7b5cff] to-[#18b6e6] text-[19px] font-black text-white"
-      style={ring ? { boxShadow: "0 0 0 2.5px var(--bg), 0 0 0 4.5px var(--accent)" } : undefined}
-    >
-      {username.slice(0, 1).toUpperCase()}
-      <span className="absolute -bottom-0.5 -right-0.5 grid h-[18px] w-[18px] place-items-center rounded-full border-2 border-bg bg-[#7b5cff] text-white">
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z" />
-        </svg>
-      </span>
-    </span>
   );
 }
 

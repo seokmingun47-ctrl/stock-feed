@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
-import { rowToPost, rowToComment } from "@/lib/community";
+import { rowToPost, rowToComment, attachAuthorProfiles } from "@/lib/community";
 import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -30,6 +30,7 @@ export async function GET(
   }
 
   const post = rowToPost(postRow as Record<string, unknown>);
+  await attachAuthorProfiles(db, [post]);
   if (user) {
     const { data: like } = await db
       .from("likes")

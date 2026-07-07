@@ -14,6 +14,9 @@ export interface AuthUser {
   id: string;
   username: string;
   isAdmin: boolean;
+  avatarUrl?: string | null;
+  profileColor?: string | null;
+  bio?: string | null;
 }
 
 // ── 비밀번호 (scrypt) ──
@@ -71,16 +74,29 @@ export async function getUser(req: NextRequest): Promise<AuthUser | null> {
   const userId = verifySession(token);
   if (!userId) return null;
   const db = getAdminClient();
-  const { data } = await db
+  const res = await db
     .from("community_users")
-    .select("id, username")
+    .select("id, username, avatar_url, profile_color, bio")
     .eq("id", userId)
     .single();
+  let data = res.data as Record<string, unknown> | null;
+  // 프로필 컬럼 미설정(마이그레이션 전)이면 기본 컬럼만
+  if (!data) {
+    const res2 = await db
+      .from("community_users")
+      .select("id, username")
+      .eq("id", userId)
+      .single();
+    data = res2.data as Record<string, unknown> | null;
+  }
   if (!data) return null;
   return {
     id: String(data.id),
     username: String(data.username),
     isAdmin: isAdminUsername(String(data.username)),
+    avatarUrl: (data.avatar_url as string) ?? null,
+    profileColor: (data.profile_color as string) ?? null,
+    bio: (data.bio as string) ?? null,
   };
 }
 

@@ -24,12 +24,20 @@ export async function GET(req: NextRequest) {
     const ids = [...new Set((rows ?? []).map((r) => String(r.author_id)))];
     if (!ids.length) return NextResponse.json({ ok: true, authors: [] });
 
-    const { data: users } = await db
+    const res = await db
       .from("community_users")
-      .select("id, username")
+      .select("id, username, avatar_url, profile_color")
       .in("id", ids);
-    const nameMap = new Map(
-      (users ?? []).map((u) => [String(u.id), String(u.username)]),
+    let users = res.data as Array<Record<string, unknown>> | null;
+    if (!users) {
+      const res2 = await db
+        .from("community_users")
+        .select("id, username")
+        .in("id", ids);
+      users = res2.data as Array<Record<string, unknown>> | null;
+    }
+    const uMap = new Map(
+      (users ?? []).map((u) => [String(u.id), u]),
     );
 
     // 각 작성자의 뉴스 개수
@@ -46,12 +54,17 @@ export async function GET(req: NextRequest) {
 
     // 팔로우한 순서 유지
     const authors: Author[] = ids
-      .filter((id) => nameMap.has(id))
-      .map((id) => ({
-        id,
-        username: nameMap.get(id)!,
-        newsCount: counts.get(id) ?? 0,
-      }));
+      .filter((id) => uMap.has(id))
+      .map((id) => {
+        const u = uMap.get(id)!;
+        return {
+          id,
+          username: String(u.username),
+          newsCount: counts.get(id) ?? 0,
+          avatarUrl: (u.avatar_url as string) ?? null,
+          profileColor: (u.profile_color as string) ?? null,
+        };
+      });
     return NextResponse.json({ ok: true, authors });
   } catch {
     return NextResponse.json({ ok: true, authors: [] });

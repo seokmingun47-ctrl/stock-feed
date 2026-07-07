@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
-import { rowToPost } from "@/lib/community";
+import { rowToPost, attachAuthorProfiles } from "@/lib/community";
 import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -18,11 +18,20 @@ export async function GET(
   const db = getAdminClient();
   const user = await getUser(req);
 
-  const { data: au } = await db
+  const auRes = await db
     .from("community_users")
-    .select("id, username")
+    .select("id, username, avatar_url, profile_color, bio")
     .eq("id", id)
     .single();
+  let au = auRes.data as Record<string, unknown> | null;
+  if (!au) {
+    const auRes2 = await db
+      .from("community_users")
+      .select("id, username")
+      .eq("id", id)
+      .single();
+    au = auRes2.data as Record<string, unknown> | null;
+  }
   if (!au) {
     return NextResponse.json({ ok: false, reason: "not-found" }, { status: 404 });
   }
@@ -36,6 +45,7 @@ export async function GET(
     .order("created_at", { ascending: false })
     .limit(100);
   const news = (rows ?? []).map((r) => rowToPost(r as Record<string, unknown>));
+  await attachAuthorProfiles(db, news);
 
   // 내가 좋아요한 뉴스 표시
   if (user && news.length) {
@@ -79,6 +89,9 @@ export async function GET(
       username: String(au.username),
       newsCount: news.length,
       followerCount,
+      avatarUrl: (au.avatar_url as string) ?? null,
+      profileColor: (au.profile_color as string) ?? null,
+      bio: (au.bio as string) ?? null,
     },
     following,
     news,
