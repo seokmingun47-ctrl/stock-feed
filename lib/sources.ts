@@ -202,16 +202,6 @@ export const SOURCES: Source[] = [
     color: "#f5b60c",
   },
   {
-    id: "ibd",
-    name: "Investor's Business Daily",
-    handle: "@IBDinvestors",
-    category: "Stock Analysis",
-    region: "global",
-    url: "https://www.investors.com/feed/",
-    domain: "investors.com",
-    color: "#c8102e",
-  },
-  {
     id: "truthsocial",
     name: "Truth Social",
     handle: "@realDonaldTrump",

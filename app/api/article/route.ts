@@ -21,7 +21,6 @@ const ALLOWED = [
   "npr.org",
   "theguardian.com",
   "coindesk.com",
-  "investors.com",
   // 국내
   "hankyung.com",
   "yna.co.kr",
