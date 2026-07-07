@@ -1,75 +1,51 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Period = "day" | "week" | "month";
-
-// 티커로 시장 판별 (6자리 숫자=국내, 영문=미국)
-function classify(ticker: string): { type: "kr" | "us" | "none"; key: string } {
-  const t = ticker.trim().toUpperCase();
-  if (/^\d{6}$/.test(t)) return { type: "kr", key: t };
-  if (/^[A-Z][A-Z.\-]{0,5}$/.test(t)) return { type: "us", key: t };
-  return { type: "none", key: "" };
+interface Candle {
+  d: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
 }
 
-// 네이버 금융 차트 이미지 (국내)
-function naverChart(code: string, period: Period, cb: number): string {
-  return `https://ssl.pstatic.net/imgfinance/chart/item/candle/${period}/${code}.png?sidcode=${cb}`;
-}
+// 한국 관례: 상승=빨강, 하락=파랑
+const UP = "#f6465d";
+const DOWN = "#4b91f7";
 
-// Finviz 차트 이미지 (미국)
-function finvizChart(sym: string, period: Period, cb: number): string {
-  const p = period === "day" ? "d" : period === "week" ? "w" : "m";
-  return `https://charts2.finviz.com/chart.ashx?t=${sym}&ty=c&ta=1&p=${p}&s=l&cb=${cb}`;
-}
-
-// 외부 금융 사이트 링크 (국내=네이버, 해외=야후)
-function externalLink(
-  type: "kr" | "us" | "none",
-  key: string,
-  name: string,
-): { label: string; url: string } {
-  if (type === "kr")
-    return {
-      label: "네이버 금융에서 자세히 보기",
-      url: `https://finance.naver.com/item/main.naver?code=${key}`,
-    };
-  if (type === "us")
-    return {
-      label: "Yahoo Finance에서 자세히 보기",
-      url: `https://finance.yahoo.com/quote/${key}`,
-    };
-  return {
-    label: "검색으로 보기",
-    url: `https://www.google.com/search?q=${encodeURIComponent(name + " 주가")}`,
-  };
+function fmtPrice(price: string, currency: string): string {
+  if (currency === "KRW") return `${price}원`;
+  if (currency === "USD") return `$${price}`;
+  return `${price} ${currency}`;
 }
 
 export default function StockChart({
   name,
   ticker,
   market,
+  symbol,
+  domestic,
+  price,
+  changeRate,
+  currency,
   onClose,
 }: {
   name: string;
   ticker: string;
   market: string;
+  symbol?: string;
+  domestic?: boolean;
+  price?: string;
+  changeRate?: number;
+  currency?: string;
   onClose: () => void;
 }) {
   const [period, setPeriod] = useState<Period>("day");
-  const [imgErr, setImgErr] = useState(false);
-  const [cb] = useState(() => Date.now()); // 열 때마다 최신 이미지
-  const cls = classify(ticker);
-  const link = externalLink(cls.type, cls.key, name);
-
-  const src =
-    cls.type === "kr"
-      ? naverChart(cls.key, period, cb)
-      : cls.type === "us"
-        ? finvizChart(cls.key, period, cb)
-        : null;
-
-  useEffect(() => setImgErr(false), [period]);
+  const [candles, setCandles] = useState<Candle[] | null>(null);
+  const [err, setErr] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -82,27 +58,64 @@ export default function StockChart({
     };
   }, [onClose]);
 
+  useEffect(() => {
+    let alive = true;
+    setCandles(null);
+    setErr(false);
+    const q =
+      symbol && domestic !== undefined
+        ? `symbol=${encodeURIComponent(symbol)}&domestic=${domestic ? 1 : 0}`
+        : `ticker=${encodeURIComponent(ticker)}&name=${encodeURIComponent(name)}`;
+    fetch(`/api/stock-chart?${q}&tf=${period}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        if (d.ok && d.candles?.length) setCandles(d.candles);
+        else setErr(true);
+      })
+      .catch(() => alive && setErr(true));
+    return () => {
+      alive = false;
+    };
+  }, [period, symbol, domestic, ticker, name]);
+
+  const up = (changeRate ?? 0) > 0;
+  const down = (changeRate ?? 0) < 0;
+  const changeColor = up ? UP : down ? DOWN : "var(--muted)";
+
   return (
     <div
       className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/60"
       onClick={onClose}
     >
       <div
-        className="sheet-up mx-auto flex max-h-[88vh] w-full max-w-[600px] flex-col overflow-hidden rounded-t-3xl border-t border-border bg-bg"
+        className="sheet-up mx-auto flex max-h-[90vh] w-full max-w-[600px] flex-col overflow-hidden rounded-t-3xl border-t border-border bg-bg"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <span className="text-[17px] font-extrabold text-text">{name}</span>
-              {ticker && (
-                <span className="text-[13px] font-medium text-muted">{ticker}</span>
-              )}
-              {market && (
-                <span className="rounded bg-bg-soft px-1.5 py-0.5 text-[10px] font-semibold text-muted">
-                  {market}
+              {price ? (
+                <span className="text-[16px] font-bold text-text">
+                  {fmtPrice(price, currency || "")}
+                </span>
+              ) : null}
+              {typeof changeRate === "number" && (price || changeRate !== 0) && (
+                <span
+                  className="text-[13px] font-bold"
+                  style={{ color: changeColor }}
+                >
+                  {up ? "▲" : down ? "▼" : ""}
+                  {changeRate > 0 ? "+" : ""}
+                  {changeRate.toFixed(2)}%
                 </span>
               )}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
+              {ticker && <span>{ticker}</span>}
+              {market && <span>· {market}</span>}
+              <span>· 네이버 증권</span>
             </div>
           </div>
           <button
@@ -116,77 +129,169 @@ export default function StockChart({
           </button>
         </header>
 
-        {src ? (
-          <>
-            {/* 기간 탭 */}
-            <div className="flex gap-1 px-4 pt-3">
-              {(
-                [
-                  ["day", "일"],
-                  ["week", "주"],
-                  ["month", "월"],
-                ] as const
-              ).map(([p, label]) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-colors ${
-                    period === p
-                      ? "bg-accent text-white"
-                      : "bg-bg-soft text-muted hover:text-text"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+        <div className="flex gap-1 px-4 pt-3">
+          {(
+            [
+              ["day", "일"],
+              ["week", "주"],
+              ["month", "월"],
+            ] as const
+          ).map(([p, label]) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-colors ${
+                period === p
+                  ? "bg-accent text-white"
+                  : "bg-bg-soft text-muted hover:text-text"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-            {/* 차트 이미지 */}
-            <div className="px-4 py-3">
-              {imgErr ? (
-                <div className="flex h-[220px] flex-col items-center justify-center rounded-xl bg-bg-soft text-center">
-                  <p className="text-[14px] font-semibold text-text">
-                    차트를 불러오지 못했어요
-                  </p>
-                  <p className="mt-1 text-[12px] text-muted">
-                    아래 링크에서 확인해 주세요.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-xl bg-white">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt={`${name} 차트`}
-                    onError={() => setImgErr(true)}
-                    className="w-full"
-                  />
-                </div>
-              )}
+        <div className="px-3 py-3">
+          {err ? (
+            <div className="flex h-[260px] flex-col items-center justify-center text-center">
+              <p className="text-[14px] font-semibold text-text">
+                차트를 불러오지 못했어요
+              </p>
+              <p className="mt-1 text-[12px] text-muted">잠시 후 다시 시도해 주세요.</p>
             </div>
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
-            <p className="text-[15px] font-semibold text-text">
-              이 종목의 차트를 찾지 못했어요
-            </p>
-            <p className="mt-1.5 text-[13px] text-muted">
-              티커 정보가 없어 외부에서 확인해 주세요.
-            </p>
-          </div>
-        )}
+          ) : !candles ? (
+            <div className="flex h-[260px] items-center justify-center">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" className="spin">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              </svg>
+            </div>
+          ) : (
+            <Candles data={candles} period={period} />
+          )}
+        </div>
 
-        <div className="mt-auto border-t border-border px-4 py-2.5">
-          <a
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 rounded-full bg-bg-soft py-2.5 text-[13.5px] font-semibold text-text hover:bg-card-hover"
-          >
-            {link.label} ↗
-          </a>
+        <div className="mt-auto px-4 pb-3 pt-1 text-center text-[11px] text-muted">
+          네이버 증권 시세 · 실시간과 다소 차이가 있을 수 있어요
         </div>
       </div>
     </div>
+  );
+}
+
+function fmtNum(n: number): string {
+  if (n >= 1e12) return (n / 1e12).toFixed(1) + "조";
+  if (n >= 1e8) return (n / 1e8).toFixed(1) + "억";
+  if (n >= 1e4) return Math.round(n).toLocaleString();
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function Candles({ data, period }: { data: Candle[]; period: Period }) {
+  const cap = period === "day" ? 90 : 120;
+  const candles = useMemo(() => {
+    const sorted = [...data].sort((a, b) => a.d.localeCompare(b.d));
+    return sorted.slice(-cap);
+  }, [data, cap]);
+
+  const W = 720;
+  const priceTop = 6;
+  const priceH = 236;
+  const volTop = 250;
+  const volH = 66;
+  const padL = 6;
+  const padR = 58; // 오른쪽 가격 라벨 공간
+  const innerW = W - padL - padR;
+  const n = candles.length;
+  const step = innerW / Math.max(n, 1);
+  const bodyW = Math.max(1, Math.min(step * 0.66, 12));
+
+  const highs = candles.map((c) => c.h);
+  const lows = candles.map((c) => c.l);
+  let pMax = Math.max(...highs);
+  let pMin = Math.min(...lows);
+  const padP = (pMax - pMin) * 0.04 || pMax * 0.02 || 1;
+  pMax += padP;
+  pMin -= padP;
+  const volMax = Math.max(...candles.map((c) => c.v), 1);
+
+  const yP = (p: number) => priceTop + ((pMax - p) / (pMax - pMin)) * priceH;
+  const cx = (i: number) => padL + step * i + step / 2;
+
+  const last = candles[n - 1];
+  const lastUp = last.c >= last.o;
+
+  // x축 날짜 라벨 (처음/중간/끝)
+  const fmtDate = (d: string) =>
+    d.length === 8 ? `${d.slice(4, 6)}/${d.slice(6, 8)}` : d;
+  const ticks = [0, Math.floor(n / 2), n - 1];
+
+  return (
+    <svg viewBox={`0 0 ${W} 336`} className="w-full" preserveAspectRatio="none">
+      {/* 가로 그리드 + 가격 라벨 */}
+      {[0, 0.25, 0.5, 0.75, 1].map((f, i) => {
+        const p = pMax - f * (pMax - pMin);
+        const y = priceTop + f * priceH;
+        return (
+          <g key={i}>
+            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+            <text x={W - padR + 4} y={y + 3} fill="var(--muted)" fontSize="10">
+              {fmtNum(p)}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* 캔들 + 거래량 */}
+      {candles.map((c, i) => {
+        const color = c.c >= c.o ? UP : DOWN;
+        const bx = cx(i);
+        const yHi = yP(c.h);
+        const yLo = yP(c.l);
+        const yO = yP(c.o);
+        const yC = yP(c.c);
+        const bodyTop = Math.min(yO, yC);
+        const bodyH = Math.max(1, Math.abs(yO - yC));
+        const vh = (c.v / volMax) * volH;
+        return (
+          <g key={i}>
+            <line x1={bx} y1={yHi} x2={bx} y2={yLo} stroke={color} strokeWidth="1" />
+            <rect x={bx - bodyW / 2} y={bodyTop} width={bodyW} height={bodyH} fill={color} />
+            <rect
+              x={bx - bodyW / 2}
+              y={volTop + (volH - vh)}
+              width={bodyW}
+              height={vh}
+              fill={color}
+              opacity="0.45"
+            />
+          </g>
+        );
+      })}
+
+      {/* 최근 종가 기준선 */}
+      <line
+        x1={padL}
+        y1={yP(last.c)}
+        x2={W - padR}
+        y2={yP(last.c)}
+        stroke={lastUp ? UP : DOWN}
+        strokeWidth="1"
+        strokeDasharray="3 3"
+        opacity="0.6"
+      />
+
+      {/* x축 날짜 */}
+      {ticks.map((i, k) => (
+        <text
+          key={k}
+          x={Math.min(Math.max(cx(i), 14), W - padR - 14)}
+          y={332}
+          fill="var(--muted)"
+          fontSize="10"
+          textAnchor="middle"
+        >
+          {fmtDate(candles[i].d)}
+        </text>
+      ))}
+    </svg>
   );
 }

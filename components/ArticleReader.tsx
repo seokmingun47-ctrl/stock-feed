@@ -22,6 +22,21 @@ interface StockPick {
   market: string;
   sentiment: "positive" | "negative" | "neutral";
   reason: string;
+  // 네이버 시세(분석 후 별도 로드)
+  symbol?: string;
+  domestic?: boolean;
+  price?: string;
+  changeRate?: number;
+  currency?: string;
+}
+
+// 시세 색상 (한국 관례: 상승=빨강, 하락=파랑)
+const PRICE_UP = "#f6465d";
+const PRICE_DOWN = "#4b91f7";
+function fmtStockPrice(price: string, currency: string): string {
+  if (currency === "KRW") return `${price}원`;
+  if (currency === "USD") return `$${price}`;
+  return price;
 }
 
 function PersonIcon({ size = 26 }: { size?: number }) {
@@ -182,8 +197,30 @@ export default function ArticleReader({
         body: JSON.stringify({ title, text: bodyText }),
       });
       const d = await res.json();
-      if (d.ok) setStocks(d.stocks);
-      else setStocksErr(d.reason || "분석에 실패했어요.");
+      if (d.ok) {
+        setStocks(d.stocks);
+        // 시세는 별도 로드 후 병합 (실패해도 종목은 그대로 표시)
+        const picks: StockPick[] = d.stocks;
+        fetch("/api/stock-quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stocks: picks.map((s) => ({ name: s.name, ticker: s.ticker })),
+          }),
+        })
+          .then((r) => r.json())
+          .then((qd) => {
+            if (!qd.ok || !Array.isArray(qd.quotes)) return;
+            setStocks((prev) =>
+              prev
+                ? prev.map((s, i) =>
+                    qd.quotes[i] ? { ...s, ...qd.quotes[i] } : s,
+                  )
+                : prev,
+            );
+          })
+          .catch(() => {});
+      } else setStocksErr(d.reason || "분석에 실패했어요.");
     } catch {
       setStocksErr("네트워크 오류예요.");
     } finally {
@@ -349,26 +386,42 @@ export default function ArticleReader({
                           >
                             <SentimentBadge sentiment={s.sentiment} />
                             <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                                 <span className="text-[15px] font-bold text-text group-hover:underline">
                                   {s.name}
                                 </span>
-                                {s.ticker && (
-                                  <span className="text-[12px] font-medium text-muted">
-                                    {s.ticker}
+                                {s.price && (
+                                  <span className="text-[14px] font-bold text-text">
+                                    {fmtStockPrice(s.price, s.currency || "")}
                                   </span>
                                 )}
-                                {s.market && (
-                                  <span className="rounded bg-bg px-1.5 py-0.5 text-[10px] font-semibold text-muted">
-                                    {s.market}
+                                {s.price && typeof s.changeRate === "number" && (
+                                  <span
+                                    className="text-[12px] font-bold"
+                                    style={{
+                                      color:
+                                        s.changeRate > 0
+                                          ? PRICE_UP
+                                          : s.changeRate < 0
+                                            ? PRICE_DOWN
+                                            : "var(--muted)",
+                                    }}
+                                  >
+                                    {s.changeRate > 0 ? "▲" : s.changeRate < 0 ? "▼" : ""}
+                                    {s.changeRate > 0 ? "+" : ""}
+                                    {s.changeRate.toFixed(2)}%
                                   </span>
                                 )}
+                              </div>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-muted">
+                                {s.ticker && <span>{s.ticker}</span>}
+                                {s.market && <span>· {s.market}</span>}
                                 <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
                                   차트 보기
                                 </span>
                               </div>
                               {s.reason && (
-                                <p className="mt-0.5 text-[13px] leading-relaxed text-muted">
+                                <p className="mt-1 text-[13px] leading-relaxed text-muted">
                                   {s.reason}
                                 </p>
                               )}
@@ -507,6 +560,11 @@ export default function ArticleReader({
           name={chartStock.name}
           ticker={chartStock.ticker}
           market={chartStock.market}
+          symbol={chartStock.symbol}
+          domestic={chartStock.domestic}
+          price={chartStock.price}
+          changeRate={chartStock.changeRate}
+          currency={chartStock.currency}
           onClose={() => setChartStock(null)}
         />
       )}
