@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { geminiRace } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const preferredRegion = "icn1";
 export const maxDuration = 30;
-
-// 속도 우선 (2.5-flash는 무료 한도 429로 즉시 실패해 느리게 함 → 뒤로)
-const MODELS = [
-  "gemini-flash-lite-latest",
-  "gemini-flash-latest",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-];
-
-const RETRY_DEADLINE_MS = 24000;
-const PER_CALL_MS = 10000;
 
 function buildPrompt(title: string, text: string): string {
   return `당신은 증권 애널리스트입니다. 아래 [본문]을 분석해, 이 뉴스와 직접 관련되거나 뚜렷하게 영향을 받을 상장 종목을 추립니다.
@@ -112,61 +102,14 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const startedAt = Date.now();
-  let data: unknown = null;
-  let lastStatus = 0;
-  let authFailed = false;
-
-  while (!data && !authFailed && Date.now() - startedAt < RETRY_DEADLINE_MS) {
-    for (const model of MODELS) {
-      if (Date.now() - startedAt >= RETRY_DEADLINE_MS) break;
-      const ac = new AbortController();
-      const tt = setTimeout(() => ac.abort(), PER_CALL_MS);
-      try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-            body: requestBody,
-            signal: ac.signal,
-          },
-        );
-        lastStatus = res.status;
-        if (res.ok) {
-          data = await res.json();
-          break;
-        }
-        if (res.status === 400 || res.status === 403) {
-          authFailed = true;
-          break;
-        }
-      } catch {
-        /* 타임아웃/네트워크 → 다음 모델 */
-      } finally {
-        clearTimeout(tt);
-      }
-    }
-    if (!data && !authFailed && Date.now() - startedAt < RETRY_DEADLINE_MS) {
-      await new Promise((r) => setTimeout(r, 400));
-    }
+  const outText = await geminiRace(apiKey, requestBody);
+  if (!outText) {
+    return NextResponse.json(
+      { ok: false, reason: "AI가 잠시 혼잡해요. 다시 시도해 주세요." },
+      { status: 503 },
+    );
   }
 
-  if (!data) {
-    const reason =
-      lastStatus === 400 || lastStatus === 403
-        ? "AI 키가 올바르지 않거나 권한이 없어요."
-        : lastStatus === 429
-          ? "AI 무료 사용량을 잠시 초과했어요. 1~2분 뒤 다시 시도해 주세요."
-          : "AI 분석 중 오류가 났어요. 잠시 후 다시 시도해 주세요.";
-    return NextResponse.json({ ok: false, reason }, { status: lastStatus || 500 });
-  }
-
-  const d = data as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const outText =
-    d.candidates?.[0]?.content?.parts?.map((p) => p?.text ?? "").join("") ?? "";
   const stocks = parseStocks(outText);
   if (stocks === null) {
     return NextResponse.json(
