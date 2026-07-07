@@ -5,6 +5,7 @@ import type { Article, Source } from "@/lib/types";
 import type { User, Comment } from "@/lib/community";
 import SourceAvatar from "./SourceAvatar";
 import LikeButton from "./LikeButton";
+import StockChart from "./StockChart";
 import { timeAgo } from "@/lib/format";
 
 interface ReaderData {
@@ -61,6 +62,7 @@ export default function ArticleReader({
   const [stocks, setStocks] = useState<StockPick[] | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [stocksErr, setStocksErr] = useState("");
+  const [chartStock, setChartStock] = useState<StockPick | null>(null);
   const listEnd = useRef<HTMLDivElement>(null);
 
   const translated = translate && source.region === "global";
@@ -338,13 +340,17 @@ export default function ArticleReader({
                         이 뉴스와 뚜렷하게 연관된 종목을 찾지 못했어요.
                       </p>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="space-y-1">
                         {stocks.map((s, i) => (
-                          <div key={i} className="flex gap-2.5">
+                          <button
+                            key={i}
+                            onClick={() => setChartStock(s)}
+                            className="group -mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-bg active:bg-bg"
+                          >
                             <SentimentBadge sentiment={s.sentiment} />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                                <span className="text-[15px] font-bold text-text">
+                                <span className="text-[15px] font-bold text-text group-hover:underline">
                                   {s.name}
                                 </span>
                                 {s.ticker && (
@@ -357,6 +363,9 @@ export default function ArticleReader({
                                     {s.market}
                                   </span>
                                 )}
+                                <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
+                                  차트 보기
+                                </span>
                               </div>
                               {s.reason && (
                                 <p className="mt-0.5 text-[13px] leading-relaxed text-muted">
@@ -364,7 +373,20 @@ export default function ArticleReader({
                                 </p>
                               )}
                             </div>
-                          </div>
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mt-1 shrink-0 text-muted group-hover:text-text"
+                            >
+                              <path d="M9 18l6-6-6-6" />
+                            </svg>
+                          </button>
                         ))}
                       </div>
                     )}
@@ -479,6 +501,15 @@ export default function ArticleReader({
           </div>
         </div>
       </div>
+
+      {chartStock && (
+        <StockChart
+          name={chartStock.name}
+          ticker={chartStock.ticker}
+          market={chartStock.market}
+          onClose={() => setChartStock(null)}
+        />
+      )}
     </div>
   );
 }
