@@ -47,6 +47,9 @@ export default function ArticleReader({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [koTitle, setKoTitle] = useState(article.title);
+  const [summary, setSummary] = useState<string[] | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryErr, setSummaryErr] = useState("");
   const listEnd = useRef<HTMLDivElement>(null);
 
   const translated = translate && source.region === "global";
@@ -117,6 +120,41 @@ export default function ArticleReader({
   const image = data?.ok ? data.image : article.image;
   const showImg = image && imgOk;
 
+  // AI 요약 대상 본문 (소셜은 글 자체, 일반 기사는 추출된 본문)
+  const bodyText = isSocial
+    ? article.title
+    : data?.ok && data.paragraphs
+      ? data.paragraphs.join("\n")
+      : "";
+  const canSummarize = bodyText.trim().length >= 200;
+
+  // 기사가 바뀌면 요약 초기화
+  useEffect(() => {
+    setSummary(null);
+    setSummarizing(false);
+    setSummaryErr("");
+  }, [article.link]);
+
+  const summarize = async () => {
+    if (summarizing || !canSummarize) return;
+    setSummarizing(true);
+    setSummaryErr("");
+    try {
+      const res = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, text: bodyText }),
+      });
+      const d = await res.json();
+      if (d.ok) setSummary(d.summary);
+      else setSummaryErr(d.reason || "요약에 실패했어요.");
+    } catch {
+      setSummaryErr("네트워크 오류예요.");
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
   const send = async () => {
     if (!text.trim() || busy) return;
     setBusy(true);
@@ -180,6 +218,55 @@ export default function ArticleReader({
                 <span className="rounded-full bg-accent/15 px-2 py-0.5 font-semibold">한국어 번역</span>
               </div>
             )}
+
+            {/* AI 요약 */}
+            {canSummarize && (
+              <div className="mt-4">
+                {!summary && (
+                  <button
+                    onClick={summarize}
+                    disabled={summarizing}
+                    className="flex items-center gap-2 rounded-full bg-accent/15 px-4 py-2 text-[13.5px] font-bold text-accent transition-colors hover:bg-accent/25 disabled:opacity-70"
+                  >
+                    {summarizing ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" className="spin">
+                        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                      </svg>
+                    ) : (
+                      <SparkleIcon />
+                    )}
+                    {summarizing ? "AI가 핵심만 요약하는 중…" : "AI 요약 · 핵심만 보기"}
+                  </button>
+                )}
+                {summaryErr && !summarizing && (
+                  <p className="mt-2 text-[13px] text-[var(--down)]">
+                    {summaryErr}{" "}
+                    <button onClick={summarize} className="font-semibold underline">
+                      다시 시도
+                    </button>
+                  </p>
+                )}
+                {summary && (
+                  <div className="rounded-2xl border border-accent/25 bg-accent/[0.08] p-4">
+                    <div className="mb-2.5 flex items-center gap-1.5 text-[13px] font-bold text-accent">
+                      <SparkleIcon /> AI 요약
+                    </div>
+                    <ul className="space-y-2.5">
+                      {summary.map((s, i) => (
+                        <li key={i} className="flex gap-2.5 text-[15px] leading-relaxed text-text">
+                          <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-3 text-[11px] text-muted">
+                      AI가 생성한 요약이라 원문과 다를 수 있어요.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {showImg && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={image as string} alt="" onError={() => setImgOk(false)} className="mt-4 w-full rounded-xl object-cover" />
@@ -284,6 +371,15 @@ export default function ArticleReader({
         </div>
       </div>
     </div>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2l1.9 5.6L19.5 9.5 13.9 11.4 12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2z" />
+      <path d="M19 14l.8 2.3L22 17l-2.2.7L19 20l-.8-2.3L16 17l2.2-.7L19 14z" opacity="0.7" />
+    </svg>
   );
 }
 
