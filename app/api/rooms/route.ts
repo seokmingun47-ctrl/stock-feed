@@ -58,8 +58,13 @@ export async function POST(req: NextRequest) {
   }
   const name = String(body.name ?? "").trim().slice(0, 40);
   const description = String(body.description ?? "").trim().slice(0, 200);
-  const emojiRaw = String(body.emoji ?? "").trim();
-  const emoji = emojiRaw ? [...emojiRaw][0] : null; // 이모지 1글자
+  // 아이콘: 업로드 이미지 URL이면 그대로, 아니면 이모지 1글자
+  const iconRaw = String(body.emoji ?? "").trim();
+  const emoji = /^https:\/\//.test(iconRaw)
+    ? iconRaw.slice(0, 500)
+    : iconRaw
+      ? [...iconRaw][0]
+      : null;
   if (!name) {
     return NextResponse.json(
       { ok: false, reason: "방 이름을 입력해주세요." },

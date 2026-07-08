@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Room, GroupMessage, User } from "@/lib/community";
 import Avatar from "./Avatar";
+import RoomIcon from "./RoomIcon";
 
 function fmtTime(ms: number): string {
   if (!ms) return "";
@@ -158,9 +159,7 @@ export default function ChatRoom({
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-bg-soft text-[16px]">
-            {room.emoji || "💬"}
-          </span>
+          <RoomIcon icon={room.emoji} size={32} radius={999} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-bold text-text">
               {room.name}
@@ -189,7 +188,9 @@ export default function ChatRoom({
             <div className="py-10 text-center text-[13px] text-muted">불러오는 중…</div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-              <span className="mb-2 text-[36px]">{room.emoji || "💬"}</span>
+              <span className="mb-2">
+                <RoomIcon icon={room.emoji} size={56} radius={16} />
+              </span>
               <p className="text-[15px] font-bold text-text">{room.name}</p>
               {room.description && (
                 <p className="mt-1 px-8 text-[13px] text-muted">{room.description}</p>
