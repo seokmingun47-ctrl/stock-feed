@@ -11,6 +11,7 @@ import ManageSheet from "@/components/ManageSheet";
 import ArticleReader from "@/components/ArticleReader";
 import UserNewsFeed from "@/components/UserNewsFeed";
 import InterestSheet from "@/components/InterestSheet";
+import NotificationPanel from "@/components/NotificationPanel";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 import {
@@ -19,6 +20,7 @@ import {
   saveInterests,
   matchesInterests,
 } from "@/lib/interests";
+import { loadSeen, saveSeen } from "@/lib/notifications";
 
 const TR_KEY = "stockfeed:translate";
 
@@ -74,23 +76,22 @@ export default function Feed({
   const [interests, setInterests] = useState<Interest[]>([]);
   const [interestSheet, setInterestSheet] = useState(false);
   const [interestGnews, setInterestGnews] = useState<Article[] | null>(null);
+  const [seen, setSeen] = useState<Set<string>>(new Set());
+  const [notifOpen, setNotifOpen] = useState(false);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
   const sourceSetRef = useRef<"none" | "base" | "hidden">("none");
   const interestsRef = useRef<Interest[]>([]);
-  const interestModeRef = useRef(false);
 
-  // 관심 목록 로드(계정별) — 최초 마운트
+  // 관심 목록 + 알림 읽음 로드(계정별) — 최초 마운트
   useEffect(() => {
     setInterests(loadInterests(user.username));
+    setSeen(loadSeen(user.username));
   }, [user.username]);
 
   useEffect(() => {
     interestsRef.current = interests;
   }, [interests]);
-  useEffect(() => {
-    interestModeRef.current = active === "interests";
-  }, [active]);
 
   // 관심 종목·키워드로 외부 뉴스(구글뉴스, 인앱에 없는 매체 포함) 로드
   const loadInterestGnews = useCallback(async () => {
@@ -197,7 +198,7 @@ export default function Feed({
     const t = setInterval(() => {
       fetchFeed(followed);
       if (sourceSetRef.current !== "none") loadBreaking();
-      if (interestModeRef.current) loadInterestGnews();
+      if (interestsRef.current.length) loadInterestGnews();
     }, 90_000);
     return () => clearInterval(t);
   }, [followed, fetchFeed, loadBreaking, loadInterestGnews]);
@@ -288,14 +289,17 @@ export default function Feed({
     return base;
   }, [breaking, active, interests, query]);
 
-  // 관심 모드 진입/관심 변경 시 외부 뉴스 로드
+  // 관심이 있으면 백그라운드로 외부 뉴스 로드(알림 벨용, 탭 무관) — 관심 변경 시 갱신
   const interestKey = interests.map((i) => i.label).join("|");
   useEffect(() => {
-    if (active !== "interests") return;
+    if (!interestKey) {
+      setInterestGnews([]);
+      return;
+    }
     setInterestGnews(null);
     loadInterestGnews();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, interestKey]);
+  }, [interestKey]);
 
   // 관심 피드 = 인앱 필터 결과 + 외부(구글뉴스) 병합 (링크 중복 제거·최신순)
   const interestMerged = useMemo(() => {
@@ -363,6 +367,22 @@ export default function Feed({
     });
   };
 
+  // 알림: 안읽음 = 외부 관심 뉴스 중 아직 안 본 것
+  const unreadCount = useMemo(
+    () => (interestGnews ?? []).filter((a) => !seen.has(a.link)).length,
+    [interestGnews, seen],
+  );
+  // 알림 패널 닫으면 현재 항목 모두 읽음 처리 (배지 클리어)
+  const closeNotif = () => {
+    setNotifOpen(false);
+    const links = new Set<string>([
+      ...seen,
+      ...(interestGnews ?? []).map((a) => a.link),
+    ]);
+    setSeen(links);
+    saveSeen(user.username, [...links]);
+  };
+
   return (
     <div className="mx-auto flex min-h-screen max-w-[600px] flex-col bg-bg">
       <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur">
@@ -412,6 +432,18 @@ export default function Feed({
               className="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-bg-soft"
             >
               <RefreshIcon spinning={loading} />
+            </button>
+            <button
+              onClick={() => setNotifOpen(true)}
+              aria-label="알림"
+              className="relative grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-bg-soft"
+            >
+              <BellIcon />
+              {unreadCount > 0 && (
+                <span className="absolute right-1 top-1 grid h-[16px] min-w-[16px] place-items-center rounded-full border-2 border-bg bg-[#f6465d] px-1 text-[9px] font-black leading-none text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setManage(true)}
@@ -764,6 +796,25 @@ export default function Feed({
         />
       )}
 
+      {notifOpen && (
+        <NotificationPanel
+          items={interestGnews ?? []}
+          seen={seen}
+          hasInterests={interests.length > 0}
+          onOpenArticle={(a) => {
+            setReader(a);
+            closeNotif();
+          }}
+          onOpenInterests={() => {
+            closeNotif();
+            setActive("interests");
+            setTopic(null);
+            setInterestSheet(true);
+          }}
+          onClose={closeNotif}
+        />
+      )}
+
       {reader && SOURCE_MAP[reader.sourceId] && (
         <ArticleReader
           article={reader}
@@ -878,6 +929,15 @@ function SearchIcon({ className }: { className?: string }) {
     >
       <circle cx="11" cy="11" r="7" />
       <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   );
 }
