@@ -10,8 +10,15 @@ import ArticleCard from "@/components/ArticleCard";
 import ManageSheet from "@/components/ManageSheet";
 import ArticleReader from "@/components/ArticleReader";
 import UserNewsFeed from "@/components/UserNewsFeed";
+import InterestSheet from "@/components/InterestSheet";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
+import {
+  type Interest,
+  loadInterests,
+  saveInterests,
+  matchesInterests,
+} from "@/lib/interests";
 
 const TR_KEY = "stockfeed:translate";
 
@@ -64,8 +71,24 @@ export default function Feed({
   const topicRef = useRef<string | null>(null);
   const [translate, setTranslate] = useState(initialTranslate);
   const [reader, setReader] = useState<Article | null>(null);
+  const [interests, setInterests] = useState<Interest[]>([]);
+  const [interestSheet, setInterestSheet] = useState(false);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
+  const sourceSetRef = useRef<"none" | "base" | "hidden">("none");
+
+  // 관심 목록 로드(계정별) — 최초 마운트
+  useEffect(() => {
+    setInterests(loadInterests(user.username));
+  }, [user.username]);
+
+  const updateInterests = useCallback(
+    (next: Interest[]) => {
+      setInterests(next);
+      saveInterests(user.username, next);
+    },
+    [user.username],
+  );
 
   const fetchFeed = useCallback(async (ids: string[]) => {
     if (!ids.length) {
@@ -131,6 +154,7 @@ export default function Feed({
     if (
       active !== "all" &&
       active !== "popular" &&
+      active !== "interests" &&
       !active.startsWith("user:") &&
       !followed.includes(active)
     )
@@ -138,11 +162,11 @@ export default function Feed({
     fetchFeed(followed);
   }, [followed, fetchFeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 90초마다 자동 새로고침 (속보 보고 있으면 속보도 갱신)
+  // 90초마다 자동 새로고침 (토픽/관심 보고 있으면 전체 소스도 갱신)
   useEffect(() => {
     const t = setInterval(() => {
       fetchFeed(followed);
-      if (topicRef.current) loadBreaking();
+      if (sourceSetRef.current !== "none") loadBreaking();
     }, 90_000);
     return () => clearInterval(t);
   }, [followed, fetchFeed, loadBreaking]);
@@ -216,6 +240,23 @@ export default function Feed({
     });
   }, [breaking, topic, query]);
 
+  // 관심 뉴스 — 전체 소스(breaking)를 관심 종목·키워드로 필터
+  const interestArticles = useMemo(() => {
+    if (active !== "interests") return null;
+    if (breaking === null) return null;
+    let base = breaking.filter((a) =>
+      matchesInterests(a.title, a.summary || "", interests),
+    );
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length) {
+      base = base.filter((a) => {
+        const text = `${a.title} ${a.summary || ""}`.toLowerCase();
+        return terms.every((t) => text.includes(t));
+      });
+    }
+    return base;
+  }, [breaking, active, interests, query]);
+
   // 인기 뉴스 (좋아요 10+)
   useEffect(() => {
     if (active !== "popular") return;
@@ -226,18 +267,25 @@ export default function Feed({
       .catch(() => setPopular([]));
   }, [active]);
 
+  // 전체 소스(breaking)가 필요한 모드: 토픽 또는 관심 뉴스.
+  // 소스셋(속보=숨김포함 / 그외=base)이 바뀔 때만 재로드, 같으면 재사용(클라 필터).
+  const sourceSetKey: "none" | "base" | "hidden" =
+    topic === "속보"
+      ? "hidden"
+      : topic || active === "interests"
+        ? "base"
+        : "none";
   useEffect(() => {
-    const was = topicRef.current;
     topicRef.current = topic;
-    if (topic) {
-      // 속보(외부 포함) ↔ 다른 토픽은 소스셋이 달라 전환 시 재로드. 진입 시엔 스켈레톤.
-      if (!was) setBreaking(null);
-      loadBreaking();
-    } else {
+    sourceSetRef.current = sourceSetKey;
+    if (sourceSetKey === "none") {
       setBreaking(null);
+      return;
     }
+    setBreaking(null);
+    loadBreaking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topic]);
+  }, [sourceSetKey]);
 
   const openNews = (n: NewsItem) => {
     setReader({
@@ -362,6 +410,25 @@ export default function Feed({
               All
             </span>
           </Chip>
+          <Chip
+            active={active === "interests"}
+            onClick={() => {
+              setActive("interests");
+              setTopic(null);
+            }}
+            label="관심"
+          >
+            <span className="relative grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#f7b500] to-[#ff8a3d] text-white">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+              </svg>
+              {interests.length > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-[#f6465d] px-1 text-[10px] font-black text-white">
+                  {interests.length}
+                </span>
+              )}
+            </span>
+          </Chip>
 
           {followedSources.map((s) => (
             <Chip
@@ -441,26 +508,52 @@ export default function Feed({
         </div>
       </header>
 
-      {!activeAuthorId && (
-      <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
-        <span>
-          {topic === "속보"
-            ? `속보 · 전체 앱 실시간 최신 ${topicArticles?.length ?? 0}건`
-            : topic
-            ? `'${topic}' · 전체 앱 관련 ${topicArticles?.length ?? 0}건`
-            : active === "popular"
-            ? "BEST 인기 뉴스 · 좋아요 10개 이상"
-            : query.trim()
-                ? `'${query.trim()}' 검색 · ${shown.length}건`
-                : active === "all"
-                  ? `팔로우 ${followedSources.length}곳 · 통합 피드`
-                  : SOURCE_MAP[active]?.name}
-        </span>
-        {active !== "popular" && !topic && updatedAt > 0 && (
-          <span>업데이트 {timeAgo(updatedAt)}</span>
-        )}
-      </div>
-      )}
+      {!activeAuthorId && active === "interests" ? (
+        <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2">
+          <div className="no-scrollbar flex flex-1 gap-1.5 overflow-x-auto">
+            {interests.length === 0 ? (
+              <span className="py-1 text-[12px] text-muted">
+                관심 종목·키워드를 추가해보세요
+              </span>
+            ) : (
+              interests.map((it) => (
+                <span
+                  key={it.id}
+                  className="shrink-0 rounded-full bg-bg-soft px-2.5 py-1 text-[12px] font-semibold text-text"
+                >
+                  {it.kind === "ticker" ? "📈" : "#"}
+                  {it.label}
+                </span>
+              ))
+            )}
+          </div>
+          <button
+            onClick={() => setInterestSheet(true)}
+            className="shrink-0 rounded-full bg-accent px-3 py-1.5 text-[12px] font-bold text-white"
+          >
+            {interests.length ? "편집" : "추가"}
+          </button>
+        </div>
+      ) : !activeAuthorId ? (
+        <div className="flex items-center justify-between px-4 py-2 text-[12px] text-muted">
+          <span>
+            {topic === "속보"
+              ? `속보 · 전체 앱 실시간 최신 ${topicArticles?.length ?? 0}건`
+              : topic
+                ? `'${topic}' · 전체 앱 관련 ${topicArticles?.length ?? 0}건`
+                : active === "popular"
+                  ? "BEST 인기 뉴스 · 좋아요 10개 이상"
+                  : query.trim()
+                    ? `'${query.trim()}' 검색 · ${shown.length}건`
+                    : active === "all"
+                      ? `팔로우 ${followedSources.length}곳 · 통합 피드`
+                      : SOURCE_MAP[active]?.name}
+          </span>
+          {active !== "popular" && !topic && updatedAt > 0 && (
+            <span>업데이트 {timeAgo(updatedAt)}</span>
+          )}
+        </div>
+      ) : null}
 
       <main className="flex-1 pb-16">
         {activeAuthorId ? (
@@ -494,6 +587,34 @@ export default function Feed({
             )
           ) : (
             topicArticles.map((a) => (
+              <ArticleCard
+                key={a.id}
+                article={a}
+                source={SOURCE_MAP[a.sourceId]}
+                translate={translate}
+                onRead={setReader}
+              />
+            ))
+          )
+        ) : active === "interests" ? (
+          interests.length === 0 ? (
+            <EmptyState
+              title="관심 뉴스를 설정해보세요"
+              desc="관심 종목·키워드를 추가하면 그 관련 뉴스만 모아서 봐요."
+              action={() => setInterestSheet(true)}
+              actionLabel="관심 종목·키워드 추가"
+            />
+          ) : interestArticles === null ? (
+            <SkeletonList />
+          ) : interestArticles.length === 0 ? (
+            <EmptyState
+              title="관심 관련 뉴스가 없어요"
+              desc="지금은 관련 기사가 없어요. 관심을 편집하거나 잠시 후 다시 확인해보세요."
+              action={() => setInterestSheet(true)}
+              actionLabel="관심 편집"
+            />
+          ) : (
+            interestArticles.map((a) => (
               <ArticleCard
                 key={a.id}
                 article={a}
@@ -564,6 +685,14 @@ export default function Feed({
             setManage(false);
             onEditProfile();
           }}
+        />
+      )}
+
+      {interestSheet && (
+        <InterestSheet
+          interests={interests}
+          onChange={updateInterests}
+          onClose={() => setInterestSheet(false)}
         />
       )}
 

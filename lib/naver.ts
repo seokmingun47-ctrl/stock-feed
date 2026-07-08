@@ -51,6 +51,24 @@ export async function resolveSymbol(
   return null;
 }
 
+// 종목 검색 자동완성 (관심 종목 추가용)
+export interface StockHit {
+  name: string; // 한글 종목명
+  code: string; // 티커/코드
+  market: string; // KOSPI/NASDAQ 등
+}
+export async function searchStocks(q: string): Promise<StockHit[]> {
+  const j = (await jget(
+    `https://ac.stock.naver.com/ac?q=${encodeURIComponent(q)}&target=stock`,
+  )) as { items?: Array<Record<string, unknown>> } | null;
+  const items = (j?.items ?? []).filter((i) => String(i.category) === "stock");
+  return items.slice(0, 8).map((i) => ({
+    name: String(i.name ?? ""),
+    code: String(i.code ?? ""),
+    market: String(i.typeCode ?? ""),
+  }));
+}
+
 export interface Quote {
   price: string; // 표시용 (국내 "296,000", 해외 "193.13")
   changeRate: number; // 등락률 (%)
