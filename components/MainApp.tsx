@@ -4,9 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import type { Author, User } from "@/lib/community";
 import Feed from "./Feed";
 import Community from "./Community";
+import GroupRooms from "./GroupRooms";
 import EditProfile from "./EditProfile";
 
-type Tab = "news" | "board";
+type Tab = "news" | "group" | "board";
 
 export default function MainApp({
   user,
@@ -53,6 +54,7 @@ export default function MainApp({
           onEditProfile={openEdit}
         />
       </div>
+      {tab === "group" && <GroupRooms user={user} />}
       {tab === "board" && (
         <Community
           user={user}
@@ -84,6 +86,17 @@ export default function MainApp({
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 4h16v16H4z" />
               <path d="M8 8h8M8 12h8M8 16h5" />
+            </svg>
+          </NavItem>
+          <NavItem
+            active={tab === "group"}
+            onClick={() => setTab("group")}
+            label="그룹방"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </NavItem>
           <NavItem

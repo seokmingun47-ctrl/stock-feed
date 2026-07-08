@@ -47,6 +47,61 @@ export interface Comment {
   createdAt: number;
 }
 
+// 그룹방
+export interface Room {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string | null;
+  ownerId: string | null;
+  nickname: string;
+  memberCount: number;
+  lastBody: string | null;
+  lastAt: number;
+  createdAt: number;
+}
+
+export interface GroupMessage {
+  id: string;
+  userId: string | null;
+  nickname: string;
+  body: string;
+  avatarUrl: string | null;
+  color: string | null;
+  createdAt: number;
+}
+
+export function rowToRoom(
+  r: Record<string, unknown>,
+  memberCount = 0,
+): Room {
+  return {
+    id: String(r.id),
+    name: String(r.name ?? ""),
+    description: String(r.description ?? ""),
+    emoji: (r.emoji as string) ?? null,
+    ownerId: r.owner_id ? String(r.owner_id) : null,
+    nickname: String(r.nickname ?? ""),
+    memberCount,
+    lastBody: (r.last_body as string) ?? null,
+    lastAt: r.last_at ? Date.parse(String(r.last_at)) : 0,
+    createdAt: r.created_at ? Date.parse(String(r.created_at)) : 0,
+  };
+}
+
+export function rowToGroupMessage(r: Record<string, unknown>): GroupMessage {
+  const u = r.community_users as Record<string, unknown> | undefined;
+  return {
+    id: String(r.id),
+    userId: r.user_id ? String(r.user_id) : null,
+    nickname: String(r.nickname ?? ""),
+    body: String(r.body ?? ""),
+    avatarUrl: (u?.avatar_url as string) ?? null,
+    color: (u?.profile_color as string) ?? null,
+    createdAt: r.created_at ? Date.parse(String(r.created_at)) : 0,
+  };
+}
+
 // 인기 뉴스 항목
 export interface NewsItem {
   url: string;
