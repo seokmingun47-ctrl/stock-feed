@@ -73,14 +73,44 @@ export default function Feed({
   const [reader, setReader] = useState<Article | null>(null);
   const [interests, setInterests] = useState<Interest[]>([]);
   const [interestSheet, setInterestSheet] = useState(false);
+  const [interestGnews, setInterestGnews] = useState<Article[] | null>(null);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
   const sourceSetRef = useRef<"none" | "base" | "hidden">("none");
+  const interestsRef = useRef<Interest[]>([]);
+  const interestModeRef = useRef(false);
 
   // 관심 목록 로드(계정별) — 최초 마운트
   useEffect(() => {
     setInterests(loadInterests(user.username));
   }, [user.username]);
+
+  useEffect(() => {
+    interestsRef.current = interests;
+  }, [interests]);
+  useEffect(() => {
+    interestModeRef.current = active === "interests";
+  }, [active]);
+
+  // 관심 종목·키워드로 외부 뉴스(구글뉴스, 인앱에 없는 매체 포함) 로드
+  const loadInterestGnews = useCallback(async () => {
+    const labels = interestsRef.current.map((i) => i.label);
+    if (!labels.length) {
+      setInterestGnews([]);
+      return;
+    }
+    try {
+      const res = await fetch("/api/interest-news", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ terms: labels }),
+      });
+      const d = await res.json();
+      setInterestGnews(d.ok ? d.articles : []);
+    } catch {
+      setInterestGnews([]);
+    }
+  }, []);
 
   const updateInterests = useCallback(
     (next: Interest[]) => {
@@ -167,9 +197,10 @@ export default function Feed({
     const t = setInterval(() => {
       fetchFeed(followed);
       if (sourceSetRef.current !== "none") loadBreaking();
+      if (interestModeRef.current) loadInterestGnews();
     }, 90_000);
     return () => clearInterval(t);
-  }, [followed, fetchFeed, loadBreaking]);
+  }, [followed, fetchFeed, loadBreaking, loadInterestGnews]);
 
   const toggleTranslate = () => {
     const v = !translate;
@@ -257,6 +288,39 @@ export default function Feed({
     return base;
   }, [breaking, active, interests, query]);
 
+  // 관심 모드 진입/관심 변경 시 외부 뉴스 로드
+  const interestKey = interests.map((i) => i.label).join("|");
+  useEffect(() => {
+    if (active !== "interests") return;
+    setInterestGnews(null);
+    loadInterestGnews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, interestKey]);
+
+  // 관심 피드 = 인앱 필터 결과 + 외부(구글뉴스) 병합 (링크 중복 제거·최신순)
+  const interestMerged = useMemo(() => {
+    if (active !== "interests") return null;
+    const inApp = interestArticles ?? [];
+    let ext = interestGnews ?? [];
+    // 검색어가 있으면 외부 결과에도 적용
+    const q = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (q.length) {
+      ext = ext.filter((a) => {
+        const text = `${a.title} ${a.summary || ""}`.toLowerCase();
+        return q.every((t) => text.includes(t));
+      });
+    }
+    const seen = new Set<string>();
+    const out: Article[] = [];
+    for (const a of [...ext, ...inApp]) {
+      if (seen.has(a.link)) continue;
+      seen.add(a.link);
+      out.push(a);
+    }
+    out.sort((a, b) => b.publishedAt - a.publishedAt);
+    return out;
+  }, [active, interestArticles, interestGnews, query]);
+
   // 인기 뉴스 (좋아요 10+)
   useEffect(() => {
     if (active !== "popular") return;
@@ -339,6 +403,10 @@ export default function Feed({
               onClick={() => {
                 fetchFeed(followed);
                 if (topic) loadBreaking();
+                if (active === "interests") {
+                  loadBreaking();
+                  loadInterestGnews();
+                }
               }}
               aria-label="새로고침"
               className="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-bg-soft"
@@ -600,13 +668,13 @@ export default function Feed({
           interests.length === 0 ? (
             <EmptyState
               title="관심 뉴스를 설정해보세요"
-              desc="관심 종목·키워드를 추가하면 그 관련 뉴스만 모아서 봐요."
+              desc="관심 종목·키워드를 추가하면 인앱 소스는 물론 외부 뉴스까지 모아서 봐요."
               action={() => setInterestSheet(true)}
               actionLabel="관심 종목·키워드 추가"
             />
-          ) : interestArticles === null ? (
+          ) : interestArticles === null && interestGnews === null ? (
             <SkeletonList />
-          ) : interestArticles.length === 0 ? (
+          ) : (interestMerged ?? []).length === 0 ? (
             <EmptyState
               title="관심 관련 뉴스가 없어요"
               desc="지금은 관련 기사가 없어요. 관심을 편집하거나 잠시 후 다시 확인해보세요."
@@ -614,7 +682,7 @@ export default function Feed({
               actionLabel="관심 편집"
             />
           ) : (
-            interestArticles.map((a) => (
+            (interestMerged ?? []).map((a) => (
               <ArticleCard
                 key={a.id}
                 article={a}
