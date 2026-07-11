@@ -51,6 +51,7 @@ export default function ManageSheet({
   onClose,
   onLogout,
   onEditProfile,
+  onOpenHistory,
 }: {
   followed: string[];
   minFollow?: number;
@@ -59,6 +60,7 @@ export default function ManageSheet({
   onClose: () => void;
   onLogout?: () => void;
   onEditProfile?: () => void;
+  onOpenHistory?: () => void;
 }) {
   const [warn, setWarn] = useState(false);
   const atMin = followed.length <= minFollow;
@@ -117,6 +119,21 @@ export default function ManageSheet({
             </span>
             <span className="flex-1 text-[15px] font-bold text-text">프로필 편집</span>
             <span className="text-[12px] text-muted">사진 · 색상 · 소개</span>
+          </button>
+        )}
+
+        {onOpenHistory && (
+          <button
+            onClick={onOpenHistory}
+            className="flex w-full items-center gap-2 border-b border-border px-4 py-3.5 text-left hover:bg-bg-soft"
+          >
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-[#f6465d]/15 text-[#f6465d]">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+              </svg>
+            </span>
+            <span className="flex-1 text-[15px] font-bold text-text">기록</span>
+            <span className="text-[12px] text-muted">하트 누른 뉴스</span>
           </button>
         )}
 

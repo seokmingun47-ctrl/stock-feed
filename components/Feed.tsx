@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SOURCES, SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
 import type { Article } from "@/lib/types";
-import type { User, Author } from "@/lib/community";
+import type { User, Author, NewsItem } from "@/lib/community";
 import SourceAvatar from "@/components/SourceAvatar";
 import Avatar from "@/components/Avatar";
 import ArticleCard from "@/components/ArticleCard";
@@ -12,6 +12,7 @@ import ArticleReader from "@/components/ArticleReader";
 import UserNewsFeed from "@/components/UserNewsFeed";
 import InterestSheet from "@/components/InterestSheet";
 import NotificationPanel from "@/components/NotificationPanel";
+import LikedNews from "@/components/LikedNews";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 import {
@@ -77,6 +78,7 @@ export default function Feed({
   const [interestGnews, setInterestGnews] = useState<Article[] | null>(null);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [notifOpen, setNotifOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
   const sourceSetRef = useRef<"none" | "base" | "hidden">("none");
@@ -735,6 +737,28 @@ export default function Feed({
             setManage(false);
             onEditProfile();
           }}
+          onOpenHistory={() => {
+            setManage(false);
+            setHistoryOpen(true);
+          }}
+        />
+      )}
+
+      {historyOpen && (
+        <LikedNews
+          onOpenArticle={(item: NewsItem) => {
+            setHistoryOpen(false);
+            setReader({
+              id: `news:${item.url}`,
+              sourceId: item.sourceId,
+              title: item.title,
+              link: item.url,
+              summary: "",
+              image: item.image,
+              publishedAt: 0,
+            });
+          }}
+          onClose={() => setHistoryOpen(false)}
         />
       )}
 
