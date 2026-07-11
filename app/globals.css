@@ -100,6 +100,16 @@ body {
   }
 }
 
+/* 가로 스크롤 화살표 — 마우스(hover 가능) 기기에서만 표시, 터치는 스와이프 */
+.hscroll-arrow {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .hscroll-arrow {
+    display: grid;
+  }
+}
+
 @keyframes sheet-in {
   from {
     transform: translateY(100%);
