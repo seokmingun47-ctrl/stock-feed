@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SOURCES, SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
 import type { Article } from "@/lib/types";
-import type { User, NewsItem, Author } from "@/lib/community";
+import type { User, Author } from "@/lib/community";
 import SourceAvatar from "@/components/SourceAvatar";
 import Avatar from "@/components/Avatar";
 import ArticleCard from "@/components/ArticleCard";
@@ -68,7 +68,6 @@ export default function Feed({
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState<string | null>(null);
-  const [popular, setPopular] = useState<NewsItem[] | null>(null);
   const [breaking, setBreaking] = useState<Article[] | null>(null);
   const topicRef = useRef<string | null>(null);
   const [translate, setTranslate] = useState(initialTranslate);
@@ -184,7 +183,6 @@ export default function Feed({
     );
     if (
       active !== "all" &&
-      active !== "popular" &&
       active !== "interests" &&
       !active.startsWith("user:") &&
       !followed.includes(active)
@@ -325,16 +323,6 @@ export default function Feed({
     return out;
   }, [active, interestArticles, interestGnews, query]);
 
-  // 인기 뉴스 (좋아요 10+)
-  useEffect(() => {
-    if (active !== "popular") return;
-    setPopular(null);
-    fetch("/api/news/popular", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setPopular(d.ok ? d.items : []))
-      .catch(() => setPopular([]));
-  }, [active]);
-
   // 전체 소스(breaking)가 필요한 모드: 토픽 또는 관심 뉴스.
   // 소스셋(속보=숨김포함 / 그외=base)이 바뀔 때만 재로드, 같으면 재사용(클라 필터).
   const sourceSetKey: "none" | "base" | "hidden" =
@@ -355,17 +343,6 @@ export default function Feed({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceSetKey]);
 
-  const openNews = (n: NewsItem) => {
-    setReader({
-      id: `news:${n.url}`,
-      sourceId: n.sourceId,
-      title: n.title,
-      link: n.url,
-      summary: "",
-      image: n.image,
-      publishedAt: 0,
-    });
-  };
 
   // 알림: 안읽음 = 외부 관심 뉴스 중 아직 안 본 것
   const unreadCount = useMemo(
@@ -486,18 +463,6 @@ export default function Feed({
         )}
 
         <div className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-3 pt-1">
-          <Chip
-            active={active === "popular"}
-            onClick={() => {
-              setActive("popular");
-              setTopic(null);
-            }}
-            label="인기"
-          >
-            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#f6465d] to-[#ff8a3d] text-[15px] font-black tracking-tight text-white">
-              BEST
-            </span>
-          </Chip>
           <Chip
             active={active === "all" && !topic}
             onClick={() => {
@@ -641,15 +606,13 @@ export default function Feed({
               ? `속보 · 전체 앱 실시간 최신 ${topicArticles?.length ?? 0}건`
               : topic
                 ? `'${topic}' · 전체 앱 관련 ${topicArticles?.length ?? 0}건`
-                : active === "popular"
-                  ? "BEST 인기 뉴스 · 좋아요 10개 이상"
-                  : query.trim()
-                    ? `'${query.trim()}' 검색 · ${shown.length}건`
-                    : active === "all"
-                      ? `팔로우 ${followedSources.length}곳 · 통합 피드`
-                      : SOURCE_MAP[active]?.name}
+                : query.trim()
+                  ? `'${query.trim()}' 검색 · ${shown.length}건`
+                  : active === "all"
+                    ? `팔로우 ${followedSources.length}곳 · 통합 피드`
+                    : SOURCE_MAP[active]?.name}
           </span>
-          {active !== "popular" && !topic && updatedAt > 0 && (
+          {!topic && updatedAt > 0 && (
             <span>업데이트 {timeAgo(updatedAt)}</span>
           )}
         </div>
@@ -722,19 +685,6 @@ export default function Feed({
                 translate={translate}
                 onRead={setReader}
               />
-            ))
-          )
-        ) : active === "popular" ? (
-          popular === null ? (
-            <SkeletonList />
-          ) : popular.length === 0 ? (
-            <EmptyState
-              title="아직 인기 뉴스가 없어요"
-              desc="기사에 좋아요가 10개 이상 모이면 여기에 떠요."
-            />
-          ) : (
-            popular.map((n) => (
-              <PopularNewsCard key={n.url} item={n} onOpen={() => openNews(n)} />
             ))
           )
         ) : loading && articles.length === 0 ? (
@@ -824,61 +774,6 @@ export default function Feed({
           onClose={() => setReader(null)}
         />
       )}
-    </div>
-  );
-}
-
-function PopularNewsCard({
-  item,
-  onOpen,
-}: {
-  item: NewsItem;
-  onOpen: () => void;
-}) {
-  const s = SOURCE_MAP[item.sourceId];
-  return (
-    <div
-      onClick={onOpen}
-      role="button"
-      tabIndex={0}
-      className="block w-full cursor-pointer border-b border-border px-4 py-3.5 transition-colors hover:bg-bg-soft active:bg-bg-soft"
-    >
-      <div className="flex items-center gap-2">
-        {s && <SourceAvatar source={s} size={24} />}
-        <span className="text-[13px] font-semibold text-text">
-          {s?.name ?? "뉴스"}
-        </span>
-      </div>
-      <div className="mt-2 flex gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-[16px] font-bold leading-snug text-text">
-            {item.title}
-          </h3>
-          <div className="mt-2 flex items-center gap-4 text-[12px]">
-            <span className="flex items-center gap-1 font-semibold text-[#f6465d]">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="#f6465d" stroke="#f6465d" strokeWidth="2" strokeLinejoin="round">
-                <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
-              </svg>
-              {item.likeCount}
-            </span>
-            <span className="flex items-center gap-1 text-muted">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 17 0z" />
-              </svg>
-              {item.commentCount}
-            </span>
-          </div>
-        </div>
-        {item.image && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.image}
-            alt=""
-            loading="lazy"
-            className="h-[76px] w-[76px] shrink-0 rounded-xl object-cover"
-          />
-        )}
-      </div>
     </div>
   );
 }
