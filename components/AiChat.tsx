@@ -80,6 +80,7 @@ export default function AiChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          app: app.id,
           messages: next
             .filter((m) => m.id !== 0)
             .map((m) => ({ role: m.role, text: m.text })),

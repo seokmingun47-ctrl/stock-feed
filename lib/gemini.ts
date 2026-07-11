@@ -7,12 +7,18 @@ const RACE_MODELS = [
   "gemini-flash-latest",
   "gemini-2.5-flash-lite",
 ];
+// 최신 3세대 — 더 똑똑하고 이 계정 무료 한도 안에서 빠름(측정: <1s). '제미나이 3' 어시스턴트용.
+export const GEMINI3_MODELS = [
+  "gemini-3.1-flash-lite",
+  "gemini-3-flash-preview",
+];
 const PER_CALL_MS = 14000;
 
 // requestBody(JSON 문자열)를 여러 모델에 병렬 요청 → 첫 성공 응답의 텍스트 반환(없으면 null)
 export async function geminiRace(
   apiKey: string,
   requestBody: string,
+  models: string[] = RACE_MODELS,
 ): Promise<string | null> {
   const call = async (model: string): Promise<string> => {
     const ac = new AbortController();
@@ -42,7 +48,7 @@ export async function geminiRace(
 
   try {
     // 첫 번째로 성공(fulfilled)하는 모델의 결과. 전부 실패해야 reject.
-    return await Promise.any(RACE_MODELS.map(call));
+    return await Promise.any(models.map(call));
   } catch {
     return null;
   }
