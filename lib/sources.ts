@@ -13,7 +13,9 @@ export const SOURCES: Source[] = [
     handle: "@hankyung",
     category: "증권·금융",
     region: "kr",
-    url: "https://www.hankyung.com/feed/finance",
+    // ⚠️ hankyung.com RSS(/feed/*)가 Cloudflare 봇차단(403)됨(2026-07-08). 기사 페이지는
+    // 정상이라 구글뉴스 site: 검색으로 헤드라인 받고 → 리더가 실제 URL 해석해 본문 추출.
+    url: "https://news.google.com/rss/search?q=site%3Ahankyung.com%20(%EC%A6%9D%EC%8B%9C%20OR%20%EC%A3%BC%EC%8B%9D%20OR%20%EC%BD%94%EC%8A%A4%ED%94%BC%20OR%20%EC%A2%85%EB%AA%A9%20OR%20%EC%A3%BC%EA%B0%80)%20when%3A3d&hl=ko&gl=KR&ceid=KR:ko",
     domain: "hankyung.com",
     color: "#00355f",
   },

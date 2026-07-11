@@ -95,7 +95,9 @@ export function parseFeed(xml: string, source: Source): Article[] {
   const feed = data.feed as Record<string, unknown> | undefined;
   const atomEntries = asArray(feed?.entry as unknown);
 
-  const isGNews = source.domain === "news.google.com";
+  // 구글뉴스 피드(도메인 또는 검색 URL) — 제목 끝 " - 출처명" 제거 대상
+  const isGNews =
+    source.domain === "news.google.com" || /news\.google\.com/.test(source.url);
   for (const it of rssItems) {
     const item = it as Record<string, unknown>;
     let title = stripHtml(text(item.title));
