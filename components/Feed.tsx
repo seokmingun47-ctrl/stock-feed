@@ -14,6 +14,8 @@ import InterestSheet from "@/components/InterestSheet";
 import NotificationPanel from "@/components/NotificationPanel";
 import LikedNews from "@/components/LikedNews";
 import HScroll from "@/components/HScroll";
+import AiChat from "@/components/AiChat";
+import { AI_MAP, type AiApp } from "@/lib/ai";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 import {
@@ -80,16 +82,44 @@ export default function Feed({
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [notifOpen, setNotifOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [aiFollowed, setAiFollowed] = useState<string[]>([]);
+  const [aiChat, setAiChat] = useState<AiApp | null>(null);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
   const sourceSetRef = useRef<"none" | "base" | "hidden">("none");
   const interestsRef = useRef<Interest[]>([]);
 
-  // 관심 목록 + 알림 읽음 로드(계정별) — 최초 마운트
+  // 관심 목록 + 알림 읽음 + AI 팔로우 로드(계정별) — 최초 마운트
   useEffect(() => {
     setInterests(loadInterests(user.username));
     setSeen(loadSeen(user.username));
+    try {
+      const raw = localStorage.getItem(`stockfeed:ai:${user.username}`);
+      setAiFollowed(raw ? JSON.parse(raw) : []);
+    } catch {
+      /* noop */
+    }
   }, [user.username]);
+
+  const updateAiFollowed = useCallback(
+    (next: string[]) => {
+      setAiFollowed(next);
+      try {
+        localStorage.setItem(`stockfeed:ai:${user.username}`, JSON.stringify(next));
+      } catch {
+        /* noop */
+      }
+    },
+    [user.username],
+  );
+
+  const openAi = (app: AiApp) => {
+    if (app.mode === "web" && app.webUrl) {
+      window.open(app.webUrl, "_blank", "noopener");
+      return;
+    }
+    setAiChat(app);
+  };
 
   useEffect(() => {
     interestsRef.current = interests;
@@ -498,6 +528,26 @@ export default function Feed({
             </span>
           </Chip>
 
+          {/* 팔로우한 AI 앱 */}
+          {aiFollowed
+            .map((id) => AI_MAP[id])
+            .filter(Boolean)
+            .map((app) => (
+              <Chip
+                key={`ai:${app.id}`}
+                active={false}
+                onClick={() => openAi(app)}
+                label={app.name}
+              >
+                <span className="relative">
+                  <SourceAvatar source={app} size={52} />
+                  <span className="absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-bg bg-gradient-to-br from-[#7b5cff] to-[#18b6e6] px-1 text-[8px] font-black leading-[14px] text-white">
+                    AI
+                  </span>
+                </span>
+              </Chip>
+            ))}
+
           {followedSources.map((s) => (
             <Chip
               key={s.id}
@@ -742,8 +792,12 @@ export default function Feed({
             setManage(false);
             setHistoryOpen(true);
           }}
+          aiFollowed={aiFollowed}
+          onAiChange={updateAiFollowed}
         />
       )}
+
+      {aiChat && <AiChat app={aiChat} onClose={() => setAiChat(null)} />}
 
       {historyOpen && (
         <LikedNews

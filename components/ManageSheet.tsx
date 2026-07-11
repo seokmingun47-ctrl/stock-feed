@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FOLLOWABLE as SOURCES } from "@/lib/sources";
+import { AI_APPS } from "@/lib/ai";
 import type { Source } from "@/lib/types";
 import SourceAvatar from "./SourceAvatar";
 
@@ -52,6 +53,8 @@ export default function ManageSheet({
   onLogout,
   onEditProfile,
   onOpenHistory,
+  aiFollowed = [],
+  onAiChange,
 }: {
   followed: string[];
   minFollow?: number;
@@ -61,6 +64,8 @@ export default function ManageSheet({
   onLogout?: () => void;
   onEditProfile?: () => void;
   onOpenHistory?: () => void;
+  aiFollowed?: string[];
+  onAiChange?: (next: string[]) => void;
 }) {
   const [warn, setWarn] = useState(false);
   const atMin = followed.length <= minFollow;
@@ -135,6 +140,46 @@ export default function ManageSheet({
             <span className="flex-1 text-[15px] font-bold text-text">기록</span>
             <span className="text-[12px] text-muted">하트 누른 뉴스</span>
           </button>
+        )}
+
+        {onAiChange && (
+          <>
+            <div className="px-4 pb-1 pt-4 text-[13px] font-semibold uppercase tracking-wide text-muted">
+              🤖 AI 앱
+            </div>
+            {AI_APPS.map((app) => {
+              const on = aiFollowed.includes(app.id);
+              return (
+                <div key={app.id} className="flex items-center gap-3 px-4 py-3">
+                  <SourceAvatar source={app} size={40} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-semibold text-text">
+                      {app.name}
+                    </div>
+                    <div className="truncate text-[13px] text-muted">
+                      {app.handle} · {app.desc}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() =>
+                      onAiChange(
+                        on
+                          ? aiFollowed.filter((x) => x !== app.id)
+                          : [...aiFollowed, app.id],
+                      )
+                    }
+                    className={`rounded-full px-4 py-1.5 text-[14px] font-semibold transition-colors ${
+                      on
+                        ? "border border-border bg-transparent text-muted"
+                        : "bg-accent text-white"
+                    }`}
+                  >
+                    {on ? "팔로잉" : "팔로우"}
+                  </button>
+                </div>
+              );
+            })}
+          </>
         )}
 
         <div className="px-4 pb-1 pt-4 text-[13px] font-semibold uppercase tracking-wide text-muted">
