@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FOLLOWABLE as SOURCES } from "@/lib/sources";
 import { AI_APPS } from "@/lib/ai";
 import type { Source } from "@/lib/types";
+import type { Theme } from "@/lib/theme";
 import SourceAvatar from "./SourceAvatar";
 
 function Row({
@@ -55,6 +56,8 @@ export default function ManageSheet({
   onOpenHistory,
   aiFollowed = [],
   onAiChange,
+  theme,
+  onThemeChange,
 }: {
   followed: string[];
   minFollow?: number;
@@ -66,6 +69,8 @@ export default function ManageSheet({
   onOpenHistory?: () => void;
   aiFollowed?: string[];
   onAiChange?: (next: string[]) => void;
+  theme?: Theme;
+  onThemeChange?: (t: Theme) => void;
 }) {
   const [warn, setWarn] = useState(false);
   const atMin = followed.length <= minFollow;
@@ -108,6 +113,33 @@ export default function ManageSheet({
         {warn && (
           <div className="mx-4 mt-3 rounded-lg bg-accent/15 px-3 py-2 text-center text-[13px] font-medium text-accent">
             최소 {minFollow}개는 팔로우해야 해요
+          </div>
+        )}
+
+        {onThemeChange && (
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-accent/15 text-accent">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                </svg>
+              </span>
+              <span className="text-[15px] font-bold text-text">화면 테마</span>
+            </div>
+            <div className="flex gap-1 rounded-full bg-bg-soft p-1">
+              {(["light", "dark"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => onThemeChange(t)}
+                  className={`rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors ${
+                    theme === t ? "bg-accent text-white" : "text-muted"
+                  }`}
+                >
+                  {t === "light" ? "☀️ 라이트" : "🌙 다크"}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

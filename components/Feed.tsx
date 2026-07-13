@@ -16,6 +16,7 @@ import LikedNews from "@/components/LikedNews";
 import HScroll from "@/components/HScroll";
 import AiChat from "@/components/AiChat";
 import { AI_MAP, type AiApp } from "@/lib/ai";
+import { getStoredTheme, applyTheme, type Theme } from "@/lib/theme";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 import {
@@ -84,6 +85,7 @@ export default function Feed({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [aiFollowed, setAiFollowed] = useState<string[]>([]);
   const [aiChat, setAiChat] = useState<AiApp | null>(null);
+  const [theme, setTheme] = useState<Theme>("dark");
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
   const sourceSetRef = useRef<"none" | "base" | "hidden">("none");
@@ -100,6 +102,16 @@ export default function Feed({
       /* noop */
     }
   }, [user.username]);
+
+  // 테마(라이트/다크) — 저장값 반영 (기기 공용)
+  useEffect(() => {
+    setTheme(getStoredTheme());
+  }, []);
+
+  const changeTheme = useCallback((t: Theme) => {
+    setTheme(t);
+    applyTheme(t);
+  }, []);
 
   const updateAiFollowed = useCallback(
     (next: string[]) => {
@@ -794,6 +806,8 @@ export default function Feed({
           }}
           aiFollowed={aiFollowed}
           onAiChange={updateAiFollowed}
+          theme={theme}
+          onThemeChange={changeTheme}
         />
       )}
 

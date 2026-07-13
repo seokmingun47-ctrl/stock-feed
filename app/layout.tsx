@@ -24,9 +24,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // 하이드레이션 전에 저장된 테마를 적용해 깜빡임 방지
+  const themeScript = `try{if(localStorage.getItem('stockfeed:theme')==='light'){document.documentElement.dataset.theme='light';var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content','#ffffff');}}catch(e){}`;
   return (
-    <html lang="ko" className={`${geistSans.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+    <html
+      lang="ko"
+      data-theme="dark"
+      suppressHydrationWarning
+      className={`${geistSans.variable} h-full antialiased`}
+    >
+      <body className="min-h-full">
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {children}
+      </body>
     </html>
   );
 }

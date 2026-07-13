@@ -13,6 +13,26 @@
   --down: #f6465d;
 }
 
+/* 라이트 모드 — 변수만 덮어써서 앱 전체 전환 */
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-soft: #f1f4f9;
+  --card: #ffffff;
+  --card-hover: #eceff5;
+  --border: #e2e7ef;
+  --text: #111725;
+  --muted: #5f6b7d;
+  --accent: #2f81f7;
+  --up: #08a05f;
+  --down: #e01e40;
+}
+
+/* 테마 전환 시 부드럽게 */
+html,
+body {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-soft: var(--bg-soft);
