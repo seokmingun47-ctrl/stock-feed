@@ -5,9 +5,10 @@ import type { Author, User } from "@/lib/community";
 import Feed from "./Feed";
 import Community from "./Community";
 import GroupRooms from "./GroupRooms";
+import Market from "./Market";
 import EditProfile from "./EditProfile";
 
-type Tab = "news" | "group" | "board";
+type Tab = "news" | "market" | "group" | "board";
 
 export default function MainApp({
   user,
@@ -54,6 +55,7 @@ export default function MainApp({
           onEditProfile={openEdit}
         />
       </div>
+      {tab === "market" && <Market user={user} translate={initialTranslate} />}
       {tab === "group" && <GroupRooms user={user} />}
       {tab === "board" && (
         <Community
@@ -86,6 +88,16 @@ export default function MainApp({
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 4h16v16H4z" />
               <path d="M8 8h8M8 12h8M8 16h5" />
+            </svg>
+          </NavItem>
+          <NavItem
+            active={tab === "market"}
+            onClick={() => setTab("market")}
+            label="시장"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3v18h18" />
+              <path d="M7 14l3-3 3 3 5-6" />
             </svg>
           </NavItem>
           <NavItem

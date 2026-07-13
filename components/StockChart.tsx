@@ -185,7 +185,7 @@ function fmtNum(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-function Candles({ data, period }: { data: Candle[]; period: Period }) {
+export function Candles({ data, period }: { data: Candle[]; period: Period }) {
   const cap = period === "day" ? 90 : 120;
   const candles = useMemo(() => {
     const sorted = [...data].sort((a, b) => a.d.localeCompare(b.d));
