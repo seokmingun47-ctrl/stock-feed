@@ -114,8 +114,8 @@ export default function Market({
           <div className="mt-2.5 flex gap-1 rounded-full bg-bg-soft p-1">
             {(
               [
-                ["kr", "🇰🇷 국내"],
-                ["us", "🌐 해외"],
+                ["kr", "국내"],
+                ["us", "해외"],
               ] as const
             ).map(([r, label]) => (
               <button

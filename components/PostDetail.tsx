@@ -159,7 +159,7 @@ export default function PostDetail({
           <article className="border-b-[6px] border-bg-soft px-4 py-4">
             {isNews && (
               <span className="mb-2 inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-bold text-accent">
-                📰 뉴스
+                뉴스
               </span>
             )}
             <div className="flex items-center gap-2">

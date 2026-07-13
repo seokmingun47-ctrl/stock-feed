@@ -136,7 +136,7 @@ export default function ManageSheet({
                     theme === t ? "bg-accent text-white" : "text-muted"
                   }`}
                 >
-                  {t === "light" ? "☀️ 라이트" : "🌙 다크"}
+                  {t === "light" ? "라이트" : "다크"}
                 </button>
               ))}
             </div>
@@ -177,7 +177,7 @@ export default function ManageSheet({
         {onAiChange && (
           <>
             <div className="px-4 pb-1 pt-4 text-[13px] font-semibold uppercase tracking-wide text-muted">
-              🤖 AI 앱
+              AI 앱
             </div>
             {AI_APPS.map((app) => {
               const on = aiFollowed.includes(app.id);
@@ -215,7 +215,7 @@ export default function ManageSheet({
         )}
 
         <div className="px-4 pb-1 pt-4 text-[13px] font-semibold uppercase tracking-wide text-muted">
-          🇰🇷 국내
+          국내
         </div>
         {kr.map((s) => (
           <Row
@@ -228,7 +228,7 @@ export default function ManageSheet({
         ))}
 
         <div className="px-4 pb-1 pt-4 text-[13px] font-semibold uppercase tracking-wide text-muted">
-          🌐 해외
+          해외
         </div>
         {global.map((s) => (
           <Row

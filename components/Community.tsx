@@ -182,7 +182,7 @@ function PostCard({
       <div className="flex items-center justify-between">
         {post.kind === "news" ? (
           <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-bold text-accent">
-            📰 뉴스
+            뉴스
           </span>
         ) : (
           <span className="rounded bg-[#14c38e]/15 px-1.5 py-0.5 text-[11px] font-bold text-[#14c38e]">

@@ -282,7 +282,7 @@ export default function StockDetail({
           {/* 관련 뉴스 */}
           {news.length > 0 && (
             <div className="mt-5 px-4">
-              <h3 className="mb-2 text-[14px] font-bold text-text">📰 관련 뉴스</h3>
+              <h3 className="mb-2 text-[14px] font-bold text-text">관련 뉴스</h3>
               <div className="space-y-2">
                 {news.map((a) => (
                   <button
@@ -368,7 +368,7 @@ function AnalysisCard({
 
       {a.reasons.length > 0 && (
         <div className="border-b border-border p-4">
-          <div className="mb-1.5 text-[12px] font-bold text-[#14c38e]">📈 상승 근거</div>
+          <div className="mb-1.5 text-[12px] font-bold text-[#14c38e]">상승 근거</div>
           <ul className="space-y-1.5">
             {a.reasons.map((r, i) => (
               <li key={i} className="flex gap-1.5 text-[13px] leading-snug text-text">
@@ -382,7 +382,7 @@ function AnalysisCard({
 
       {a.risks.length > 0 && (
         <div className="p-4">
-          <div className="mb-1.5 text-[12px] font-bold text-[#f6465d]">⚠️ 리스크</div>
+          <div className="mb-1.5 text-[12px] font-bold text-[#f6465d]">리스크</div>
           <ul className="space-y-1.5">
             {a.risks.map((r, i) => (
               <li key={i} className="flex gap-1.5 text-[13px] leading-snug text-text">

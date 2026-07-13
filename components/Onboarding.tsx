@@ -97,7 +97,7 @@ export default function Onboarding({
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 pb-28">
-        <SectionLabel>🇰🇷 국내</SectionLabel>
+        <SectionLabel>국내</SectionLabel>
         <div className="grid grid-cols-2 gap-2.5">
           {kr.map((s) => (
             <Card
@@ -109,7 +109,7 @@ export default function Onboarding({
           ))}
         </div>
 
-        <SectionLabel>🌐 해외</SectionLabel>
+        <SectionLabel>해외</SectionLabel>
         <div className="grid grid-cols-2 gap-2.5">
           {global.map((s) => (
             <Card
@@ -121,7 +121,7 @@ export default function Onboarding({
           ))}
         </div>
 
-        <SectionLabel>🤖 AI 앱 · 선택 (5개에 포함 안 돼요)</SectionLabel>
+        <SectionLabel>AI 앱 · 선택 (5개에 포함 안 돼요)</SectionLabel>
         <div className="grid grid-cols-2 gap-2.5">
           {AI_APPS.map((app) => (
             <Card
