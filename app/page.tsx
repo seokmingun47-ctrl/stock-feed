@@ -11,6 +11,7 @@ const K_TRANSLATE = "stockfeed:translate";
 // 팔로우/온보딩은 계정(아이디)별로 저장 — 새 계정은 반드시 온보딩
 const fKey = (u: string) => `stockfeed:followed:${u}`;
 const oKey = (u: string) => `stockfeed:onboarded:${u}`;
+const aiKey = (u: string) => `stockfeed:ai:${u}`;
 
 type Screen = "loading" | "auth" | "onboarding" | "app";
 
@@ -66,10 +67,13 @@ export default function Home() {
     setScreen(onboarded ? "app" : "onboarding");
   };
 
-  const handleOnboardDone = (ids: string[]) => {
+  const handleOnboardDone = (ids: string[], aiIds: string[] = []) => {
     if (!user) return;
     localStorage.setItem(fKey(user.username), JSON.stringify(ids));
     localStorage.setItem(oKey(user.username), "1");
+    if (aiIds.length) {
+      localStorage.setItem(aiKey(user.username), JSON.stringify(aiIds));
+    }
     setFollowed(ids);
     setScreen("app");
   };

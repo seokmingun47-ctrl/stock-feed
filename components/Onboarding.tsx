@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FOLLOWABLE as SOURCES, MIN_FOLLOW } from "@/lib/sources";
+import { AI_APPS } from "@/lib/ai";
 import type { Source } from "@/lib/types";
 import SourceAvatar from "@/components/SourceAvatar";
 
@@ -9,10 +10,14 @@ function Card({
   source,
   selected,
   onToggle,
+  subtitle,
+  aiBadge,
 }: {
   source: Source;
   selected: boolean;
   onToggle: () => void;
+  subtitle?: string;
+  aiBadge?: boolean;
 }) {
   return (
     <button
@@ -23,12 +28,21 @@ function Card({
           : "border-border bg-bg-soft hover:bg-card"
       }`}
     >
-      <SourceAvatar source={source} size={40} />
+      <span className="relative shrink-0">
+        <SourceAvatar source={source} size={40} />
+        {aiBadge && (
+          <span className="absolute -bottom-1 -right-1 rounded-full border-2 border-bg bg-gradient-to-br from-[#7b5cff] to-[#18b6e6] px-1 text-[7px] font-black leading-[13px] text-white">
+            AI
+          </span>
+        )}
+      </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-semibold text-text">
           {source.name}
         </div>
-        <div className="truncate text-[12px] text-muted">{source.category}</div>
+        <div className="truncate text-[12px] text-muted">
+          {subtitle ?? source.category}
+        </div>
       </div>
       <span
         className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[11px] ${
@@ -48,11 +62,16 @@ export default function Onboarding({
   onDone,
 }: {
   username: string;
-  onDone: (ids: string[]) => void;
+  onDone: (ids: string[], aiIds: string[]) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
+  const [aiPicked, setAiPicked] = useState<string[]>([]);
   const toggle = (id: string) =>
     setPicked((p) =>
+      p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
+    );
+  const toggleAi = (id: string) =>
+    setAiPicked((p) =>
       p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
     );
 
@@ -101,6 +120,20 @@ export default function Onboarding({
             />
           ))}
         </div>
+
+        <SectionLabel>🤖 AI 앱 · 선택 (5개에 포함 안 돼요)</SectionLabel>
+        <div className="grid grid-cols-2 gap-2.5">
+          {AI_APPS.map((app) => (
+            <Card
+              key={app.id}
+              source={app}
+              subtitle={app.desc}
+              aiBadge
+              selected={aiPicked.includes(app.id)}
+              onToggle={() => toggleAi(app.id)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* 하단 고정 CTA */}
@@ -116,7 +149,7 @@ export default function Onboarding({
           ))}
         </div>
         <button
-          onClick={() => ready && onDone(picked)}
+          onClick={() => ready && onDone(picked, aiPicked)}
           disabled={!ready}
           className="w-full rounded-xl bg-accent py-3.5 text-[16px] font-bold text-white transition-opacity disabled:opacity-40"
         >
