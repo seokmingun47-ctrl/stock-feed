@@ -53,6 +53,7 @@ export interface Room {
   name: string;
   description: string;
   emoji: string | null;
+  tags: string[];
   ownerId: string | null;
   nickname: string;
   memberCount: number;
@@ -80,6 +81,7 @@ export function rowToRoom(
     name: String(r.name ?? ""),
     description: String(r.description ?? ""),
     emoji: (r.emoji as string) ?? null,
+    tags: Array.isArray(r.tags) ? (r.tags as string[]) : [],
     ownerId: r.owner_id ? String(r.owner_id) : null,
     nickname: String(r.nickname ?? ""),
     memberCount,

@@ -1,27 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { rowToRoom } from "@/lib/community";
+import { normalizeTag } from "@/lib/tags";
 import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 그룹방 목록 (최근 활동순) + 참여 인원
-export async function GET() {
+// 그룹방 목록 (최근 활동순) + 참여 인원. ?q= 로 태그/이름 검색.
+export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ ok: false, reason: "no-db", rooms: [] });
   }
+  const q = (req.nextUrl.searchParams.get("q") ?? "").trim().toLowerCase();
   const db = getAdminClient();
   const { data, error } = await db
     .from("group_rooms")
     .select("*")
     .order("last_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(q ? 200 : 50);
   if (error) {
     return NextResponse.json({ ok: false, reason: error.message, rooms: [] });
   }
-  const rows = data ?? [];
+  let rows = data ?? [];
+  // 태그 우선 검색(태그에 검색어 포함) + 방 이름 보조 매칭
+  if (q) {
+    rows = rows
+      .filter((r) => {
+        const tags = Array.isArray(r.tags) ? (r.tags as string[]) : [];
+        const tagHit = tags.some((t) => {
+          const tl = String(t).toLowerCase();
+          return tl.includes(q) || q.includes(tl);
+        });
+        const nameHit = String(r.name ?? "").toLowerCase().includes(q);
+        return tagHit || nameHit;
+      })
+      .slice(0, 50);
+  }
   // 참여 인원 배치 집계
   const ids = rows.map((r) => String(r.id));
   const counts = new Map<string, number>();
@@ -65,9 +81,19 @@ export async function POST(req: NextRequest) {
     : iconRaw
       ? [...iconRaw][0]
       : null;
+  // 태그: 정규화·중복제거·최소1·최대5 (개별 경제성 검증은 /api/tag-check가 추가 시 처리)
+  const tags = Array.isArray(body.tags)
+    ? [...new Set(body.tags.map((t) => normalizeTag(String(t))).filter(Boolean))].slice(0, 5)
+    : [];
   if (!name) {
     return NextResponse.json(
       { ok: false, reason: "방 이름을 입력해주세요." },
+      { status: 400 },
+    );
+  }
+  if (tags.length < 1) {
+    return NextResponse.json(
+      { ok: false, reason: "태그를 최소 1개 입력해주세요." },
       { status: 400 },
     );
   }
@@ -78,13 +104,17 @@ export async function POST(req: NextRequest) {
       name,
       description,
       emoji,
+      tags,
       owner_id: user.id,
       nickname: user.username,
     })
     .select("*")
     .single();
   if (error) {
-    return NextResponse.json({ ok: false, reason: error.message }, { status: 500 });
+    const reason = /tags|column/i.test(error.message)
+      ? "그룹방 태그 기능 DB 설정이 아직 안 됐어요. supabase/room-tags-schema.sql 을 실행해주세요."
+      : error.message;
+    return NextResponse.json({ ok: false, reason }, { status: 500 });
   }
   // 개설자는 자동 참여
   await db
