@@ -213,25 +213,32 @@ function CreateRoom({
           />
           <div className="mb-4 flex items-center gap-3">
             <RoomIcon icon={image} name={name} size={56} radius={16} />
-            <div className="flex flex-col items-start gap-0.5">
+            <div className="flex flex-col items-start gap-1.5">
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="text-[14px] font-bold text-accent disabled:opacity-60"
+                className="flex items-center gap-2 rounded-full bg-bg-soft px-4 py-2 text-[13.5px] font-semibold text-muted hover:text-text disabled:opacity-60"
               >
-                {uploading ? "올리는 중…" : image ? "사진 변경" : "사진 첨부 (선택)"}
+                {uploading ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" className="spin">
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="3" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                )}
+                {uploading ? "올리는 중…" : image ? "사진 변경" : "사진 추가 (선택)"}
               </button>
-              {image ? (
+              {image && (
                 <button
                   onClick={() => setImage(null)}
-                  className="text-[13px] font-semibold text-muted hover:text-[#f6465d]"
+                  className="text-[12.5px] font-semibold text-muted hover:text-[#f6465d]"
                 >
                   사진 제거
                 </button>
-              ) : (
-                <span className="text-[12px] text-muted">
-                  사진이 없으면 방 이름으로 아이콘이 만들어져요
-                </span>
               )}
             </div>
           </div>
