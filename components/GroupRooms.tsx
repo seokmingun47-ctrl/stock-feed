@@ -211,37 +211,39 @@ function CreateRoom({
             hidden
             onChange={(e) => pick(e.target.files)}
           />
-          <div className="mb-4 flex items-center gap-3">
-            <RoomIcon icon={image} name={name} size={56} radius={16} />
-            <div className="flex flex-col items-start gap-1.5">
+          {image && (
+            <div className="relative mb-3 h-20 w-20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={image} alt="" className="h-full w-full rounded-2xl object-cover" />
               <button
-                onClick={() => fileRef.current?.click()}
-                disabled={uploading}
-                className="flex items-center gap-2 rounded-full bg-bg-soft px-4 py-2 text-[13.5px] font-semibold text-muted hover:text-text disabled:opacity-60"
+                onClick={() => setImage(null)}
+                aria-label="사진 삭제"
+                className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white"
               >
-                {uploading ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" className="spin">
-                    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="3" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                )}
-                {uploading ? "올리는 중…" : image ? "사진 변경" : "사진 추가 (선택)"}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
               </button>
-              {image && (
-                <button
-                  onClick={() => setImage(null)}
-                  className="text-[12.5px] font-semibold text-muted hover:text-[#f6465d]"
-                >
-                  사진 제거
-                </button>
-              )}
             </div>
-          </div>
+          )}
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="mb-4 flex items-center gap-2 rounded-full bg-bg-soft px-4 py-2 text-[13.5px] font-semibold text-muted hover:text-text disabled:opacity-60"
+          >
+            {uploading ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" className="spin">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+            )}
+            {uploading ? "올리는 중…" : image ? "사진 변경" : "사진 추가 (선택)"}
+          </button>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
