@@ -69,6 +69,34 @@ export async function searchStocks(q: string): Promise<StockHit[]> {
   }));
 }
 
+// 시장 검색 — 자동완성 결과를 시세/차트 조회 가능한 형태로
+export interface MarketHit {
+  name: string;
+  ticker: string; // 표시용 코드 (국내 6자리, 해외 티커)
+  symbol: string; // 네이버 심볼 (reutersCode)
+  market: string; // KOSPI/KOSDAQ/NASDAQ/NYSE ...
+  domestic: boolean;
+}
+export async function searchMarket(q: string): Promise<MarketHit[]> {
+  const j = (await jget(
+    `https://ac.stock.naver.com/ac?q=${encodeURIComponent(q)}&target=stock`,
+  )) as { items?: Array<Record<string, unknown>> } | null;
+  const items = (j?.items ?? []).filter((i) => String(i.category) === "stock");
+  return items
+    .slice(0, 10)
+    .map((i) => {
+      const symbol = String(i.reutersCode ?? i.code ?? "");
+      return {
+        name: String(i.name ?? ""),
+        ticker: String(i.code ?? ""),
+        symbol,
+        market: String(i.typeCode ?? ""),
+        domestic: /^\d{6}$/.test(symbol),
+      };
+    })
+    .filter((h) => h.name && h.symbol);
+}
+
 export interface Quote {
   price: string; // 표시용 (국내 "296,000", 해외 "193.13")
   changeRate: number; // 등락률 (%)
