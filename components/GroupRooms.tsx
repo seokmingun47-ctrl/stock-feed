@@ -113,7 +113,7 @@ function RoomCard({ room, onOpen }: { room: Room; onOpen: () => void }) {
       onClick={onOpen}
       className="flex w-full items-center gap-3 border-b border-border px-4 py-3.5 text-left transition-colors hover:bg-bg-soft active:bg-bg-soft"
     >
-      <RoomIcon icon={room.emoji} size={48} radius={16} />
+      <RoomIcon icon={room.emoji} name={room.name} size={48} radius={16} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[16px] font-bold text-text">
@@ -136,8 +136,6 @@ function RoomCard({ room, onOpen }: { room: Room; onOpen: () => void }) {
   );
 }
 
-const EMOJIS = ["💬", "📈", "💰", "🚀", "🐂", "🐻", "🪙", "🔥", "💎", "🏦", "📊", "⚡"];
-
 function CreateRoom({
   onClose,
   onCreated,
@@ -147,7 +145,6 @@ function CreateRoom({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [emoji, setEmoji] = useState("💬");
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -177,7 +174,7 @@ function CreateRoom({
       const d = await fetch("/api/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description, emoji: image || emoji }),
+        body: JSON.stringify({ name, description, emoji: image || "" }),
       }).then((r) => r.json());
       if (!d.ok) {
         setErr(d.reason || "개설에 실패했어요.");
@@ -215,45 +212,28 @@ function CreateRoom({
             onChange={(e) => pick(e.target.files)}
           />
           <div className="mb-4 flex items-center gap-3">
-            <RoomIcon icon={image || emoji} size={56} radius={16} />
+            <RoomIcon icon={image} name={name} size={56} radius={16} />
             <div className="flex flex-col items-start gap-0.5">
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
                 className="text-[14px] font-bold text-accent disabled:opacity-60"
               >
-                {uploading ? "올리는 중…" : image ? "사진 변경" : "사진 첨부"}
+                {uploading ? "올리는 중…" : image ? "사진 변경" : "사진 첨부 (선택)"}
               </button>
-              {image && (
+              {image ? (
                 <button
                   onClick={() => setImage(null)}
                   className="text-[13px] font-semibold text-muted hover:text-[#f6465d]"
                 >
                   사진 제거
                 </button>
-              )}
-              {!image && (
-                <span className="text-[12px] text-muted">또는 아래 이모지 선택</span>
+              ) : (
+                <span className="text-[12px] text-muted">
+                  사진이 없으면 방 이름으로 아이콘이 만들어져요
+                </span>
               )}
             </div>
-          </div>
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {EMOJIS.map((e) => (
-              <button
-                key={e}
-                onClick={() => {
-                  setEmoji(e);
-                  setImage(null);
-                }}
-                className={`grid h-10 w-10 place-items-center rounded-xl text-[20px] transition-colors ${
-                  emoji === e && !image
-                    ? "bg-accent/20 ring-2 ring-accent"
-                    : "bg-bg-soft"
-                }`}
-              >
-                {e}
-              </button>
-            ))}
           </div>
           <input
             value={name}

@@ -159,7 +159,7 @@ export default function ChatRoom({
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <RoomIcon icon={room.emoji} size={32} radius={999} />
+          <RoomIcon icon={room.emoji} name={room.name} size={32} radius={999} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-bold text-text">
               {room.name}
@@ -189,7 +189,7 @@ export default function ChatRoom({
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <span className="mb-2">
-                <RoomIcon icon={room.emoji} size={56} radius={16} />
+                <RoomIcon icon={room.emoji} name={room.name} size={56} radius={16} />
               </span>
               <p className="text-[15px] font-bold text-text">{room.name}</p>
               {room.description && (
