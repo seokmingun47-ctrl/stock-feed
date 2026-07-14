@@ -88,6 +88,7 @@ export default function Feed({
   const [aiFollowed, setAiFollowed] = useState<string[]>([]);
   const [aiChat, setAiChat] = useState<AiApp | null>(null);
   const [theme, setTheme] = useState<Theme>("dark");
+  const [credits, setCredits] = useState<number | null>(null);
   const [adminUsers, setAdminUsers] = useState<Signup[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
@@ -118,6 +119,17 @@ export default function Feed({
     setTheme(t);
     applyTheme(t);
   }, []);
+
+  // AI 크레딧 잔액 (마운트 + 리더/계정시트 열고닫을 때 갱신)
+  const fetchCredits = useCallback(() => {
+    fetch("/api/credits", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setCredits(d.credits ?? null))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    fetchCredits();
+  }, [fetchCredits, reader, manage]);
 
   // 관리자: 가입자 목록 로드 + 새 가입 알림 (관리자만)
   const adminSeenKey = `stockfeed:adminSeen:${user.username}`;
@@ -494,6 +506,18 @@ export default function Feed({
             >
               <RefreshIcon spinning={loading} />
             </button>
+            {credits !== null && (
+              <button
+                onClick={() => setManage(true)}
+                title="AI 크레딧"
+                className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent hover:bg-card"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+                </svg>
+                {credits.toLocaleString()}
+              </button>
+            )}
             <button
               onClick={() => setNotifOpen(true)}
               aria-label="알림"
@@ -852,6 +876,7 @@ export default function Feed({
           onAiChange={updateAiFollowed}
           theme={theme}
           onThemeChange={changeTheme}
+          credits={credits}
           isAdmin={user.isAdmin}
           adminNew={adminNew}
           onOpenAdmin={openAdmin}

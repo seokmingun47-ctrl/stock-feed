@@ -58,6 +58,7 @@ export default function ManageSheet({
   onAiChange,
   theme,
   onThemeChange,
+  credits = null,
   isAdmin = false,
   adminNew = 0,
   onOpenAdmin,
@@ -75,6 +76,7 @@ export default function ManageSheet({
   onAiChange?: (next: string[]) => void;
   theme?: Theme;
   onThemeChange?: (t: Theme) => void;
+  credits?: number | null;
   isAdmin?: boolean;
   adminNew?: number;
   onOpenAdmin?: () => void;
@@ -148,6 +150,27 @@ export default function ManageSheet({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {credits !== null && (
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-accent/15 text-accent">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+                </svg>
+              </span>
+              <div>
+                <div className="text-[15px] font-bold text-text">AI 크레딧</div>
+                <div className="text-[11.5px] text-muted">
+                  요약·종목분석·시장분석 1회에 50
+                </div>
+              </div>
+            </div>
+            <span className="text-[17px] font-black text-accent">
+              {credits.toLocaleString()}
+            </span>
           </div>
         )}
 

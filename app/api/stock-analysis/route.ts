@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { geminiRace } from "@/lib/gemini";
+import { chargeAI } from "@/lib/credits";
 import { fetchSource } from "@/lib/rss";
 import { translateMany } from "@/lib/translate";
 import { SOURCE_MAP } from "@/lib/sources";
@@ -146,6 +147,14 @@ export async function POST(req: NextRequest) {
   const price = String(body.price ?? "").trim().slice(0, 20);
   const currency = String(body.currency ?? "").trim().slice(0, 8);
 
+  const charge = await chargeAI(req);
+  if (!charge.ok) {
+    return NextResponse.json(
+      { ok: false, reason: charge.reason, code: charge.code, credits: charge.credits },
+      { status: charge.status ?? 402 },
+    );
+  }
+
   // 뉴스 + AI 분석 병렬
   const news = await relatedNews(name);
   const headlines = news.map((a) => a.title).slice(0, 6);
@@ -168,6 +177,7 @@ export async function POST(req: NextRequest) {
 
   const outText = await geminiRace(apiKey, requestBody);
   if (!outText) {
+    await charge.refund?.();
     return NextResponse.json(
       { ok: false, reason: "AI가 잠시 혼잡해요. 다시 시도해 주세요.", news },
       { status: 503 },
@@ -175,10 +185,11 @@ export async function POST(req: NextRequest) {
   }
   const analysis = parseAnalysis(outText);
   if (!analysis) {
+    await charge.refund?.();
     return NextResponse.json(
       { ok: false, reason: "AI 응답을 해석하지 못했어요. 다시 시도해 주세요.", news },
       { status: 502 },
     );
   }
-  return NextResponse.json({ ok: true, analysis, news });
+  return NextResponse.json({ ok: true, analysis, news, credits: charge.credits });
 }

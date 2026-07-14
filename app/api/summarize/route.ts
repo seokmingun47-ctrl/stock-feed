@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { geminiRace } from "@/lib/gemini";
+import { chargeAI } from "@/lib/credits";
 
 export const runtime = "nodejs";
 export const preferredRegion = "icn1";
@@ -75,6 +76,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // AI 크레딧 차감 (미설정이면 통과)
+  const charge = await chargeAI(req);
+  if (!charge.ok) {
+    return NextResponse.json(
+      { ok: false, reason: charge.reason, code: charge.code, credits: charge.credits },
+      { status: charge.status ?? 402 },
+    );
+  }
+
   const requestBody = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: buildPrompt(title, text) }] }],
     generationConfig: {
@@ -86,6 +96,7 @@ export async function POST(req: NextRequest) {
 
   const out = await geminiRace(apiKey, requestBody);
   if (!out) {
+    await charge.refund?.();
     return NextResponse.json(
       { ok: false, reason: "AI가 잠시 혼잡해요. 다시 시도해 주세요." },
       { status: 503 },
@@ -94,11 +105,12 @@ export async function POST(req: NextRequest) {
 
   const summary = parseSummary(out);
   if (!summary) {
+    await charge.refund?.();
     return NextResponse.json(
       { ok: false, reason: "AI 응답을 해석하지 못했어요. 다시 시도해 주세요." },
       { status: 502 },
     );
   }
 
-  return NextResponse.json({ ok: true, summary });
+  return NextResponse.json({ ok: true, summary, credits: charge.credits });
 }
