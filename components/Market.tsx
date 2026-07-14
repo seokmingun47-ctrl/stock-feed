@@ -26,6 +26,7 @@ export default function Market({
   const [stocks, setStocks] = useState<QuotedStock[] | null>(null);
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<QuotedStock | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<QuotedStock[] | null>(null);
@@ -50,6 +51,14 @@ export default function Market({
     const t = setInterval(() => load(region), 30000);
     return () => clearInterval(t);
   }, [region, load]);
+
+  // AI 크레딧 잔액 (마운트 + 상세 열고닫을 때 갱신 → 분석 후 차감 반영)
+  useEffect(() => {
+    fetch("/api/credits", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setCredits(d.credits ?? null))
+      .catch(() => {});
+  }, [open]);
 
   // 종목 검색 (네이버 자동완성, 디바운스)
   useEffect(() => {
@@ -79,7 +88,17 @@ export default function Market({
   return (
     <div className="mx-auto flex min-h-screen max-w-[600px] flex-col bg-bg pb-20">
       <header className="sticky top-0 z-30 border-b border-border bg-bg/90 px-4 py-3 backdrop-blur">
-        <h1 className="text-[19px] font-extrabold tracking-tight text-text">시장</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-[19px] font-extrabold tracking-tight text-text">시장</h1>
+          {credits !== null && (
+            <span className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+              </svg>
+              {credits.toLocaleString()}
+            </span>
+          )}
+        </div>
         <p className="mb-2.5 text-[12px] text-muted">
           국내·해외 종목 시세 · 탭하면 AI 분석
         </p>

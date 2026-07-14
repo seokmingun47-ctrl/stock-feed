@@ -164,7 +164,7 @@ export default function ManageSheet({
               <div>
                 <div className="text-[15px] font-bold text-text">AI 크레딧</div>
                 <div className="text-[11.5px] text-muted">
-                  요약·종목분석·시장분석 1회에 50
+                  요약·종목분석·시장분석 1회에 25
                 </div>
               </div>
             </div>

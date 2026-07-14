@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { getAdminClient } from "./supabase";
 import { getUser } from "./auth";
 
-export const AI_COST = 50;
+export const AI_COST = 25;
 export const SIGNUP_CREDITS = 2000;
 
 // 원자 차감: 성공 시 잔액, 부족 시 -1, RPC/컬럼 미설정 시 NaN
