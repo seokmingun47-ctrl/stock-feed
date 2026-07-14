@@ -651,7 +651,7 @@ export default function Feed({
                   key={it.id}
                   className="shrink-0 rounded-full bg-bg-soft px-2.5 py-1 text-[12px] font-semibold text-text"
                 >
-                  {it.kind === "ticker" ? "📈" : "#"}
+                  {it.kind === "ticker" ? "" : "#"}
                   {it.label}
                 </span>
               ))

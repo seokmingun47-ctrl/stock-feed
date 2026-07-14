@@ -113,7 +113,7 @@ export default function InterestSheet({
                   key={it.id}
                   className="flex items-center gap-1 rounded-full bg-bg-soft px-2.5 py-1 text-[13px] font-semibold text-text"
                 >
-                  {it.kind === "ticker" ? "📈" : "#"}
+                  {it.kind === "ticker" ? "" : "#"}
                   {it.label}
                   <button
                     onClick={() => remove(it.id)}
@@ -155,7 +155,6 @@ export default function InterestSheet({
                     disabled={added}
                     className="flex w-full items-center gap-2 border-b border-border px-3.5 py-2.5 text-left last:border-0 hover:bg-bg-soft disabled:opacity-50"
                   >
-                    <span className="text-[15px]">📈</span>
                     <span className="flex-1 text-[15px] font-semibold text-text">
                       {h.name}
                     </span>
