@@ -27,15 +27,21 @@ export async function POST(req: NextRequest) {
   // 이메일(@ 포함)이면 이메일로, 아니면 아이디로 조회
   const col = id.includes("@") ? "email" : "username";
   let user: Record<string, unknown> | null = null;
-  try {
-    const { data } = await db
+  // 프로필(사진/색상/소개)까지 함께 조회 → 로그인 직후에도 프로필 유지
+  const full = await db
+    .from("community_users")
+    .select("id, username, password_hash, avatar_url, profile_color, bio")
+    .ilike(col, id)
+    .maybeSingle();
+  if (full.error) {
+    const basic = await db
       .from("community_users")
       .select("id, username, password_hash")
-      .ilike(col, id)
+      .ilike("username", id)
       .maybeSingle();
-    user = data as Record<string, unknown> | null;
-  } catch {
-    user = null;
+    user = basic.data as Record<string, unknown> | null;
+  } else {
+    user = full.data as Record<string, unknown> | null;
   }
 
   if (!user || !verifyPassword(password, String(user.password_hash))) {
@@ -52,6 +58,9 @@ export async function POST(req: NextRequest) {
       id: user.id,
       username: user.username,
       isAdmin: isAdminUsername(String(user.username)),
+      avatarUrl: (user.avatar_url as string) ?? null,
+      profileColor: (user.profile_color as string) ?? null,
+      bio: (user.bio as string) ?? null,
     },
   });
   res.cookies.set(SESSION_COOKIE, token, {
