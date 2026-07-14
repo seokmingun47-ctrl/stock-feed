@@ -4,6 +4,7 @@ import {
   hashPassword,
   signSession,
   validUsername,
+  validEmail,
   isAdminUsername,
   SESSION_COOKIE,
 } from "@/lib/auth";
@@ -15,14 +16,21 @@ export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ ok: false, reason: "no-db" }, { status: 503 });
   }
-  let body: { username?: unknown; password?: unknown };
+  let body: { username?: unknown; email?: unknown; password?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ ok: false, reason: "bad-json" }, { status: 400 });
   }
   const username = String(body.username ?? "").trim();
+  const email = String(body.email ?? "").trim();
   const password = String(body.password ?? "");
+  if (!validEmail(email)) {
+    return NextResponse.json(
+      { ok: false, reason: "올바른 이메일을 입력해주세요 (예: name@gmail.com)." },
+      { status: 400 },
+    );
+  }
   if (!validUsername(username)) {
     return NextResponse.json(
       { ok: false, reason: "아이디는 영문/숫자/_/- 3~20자예요." },
@@ -37,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getAdminClient();
-  // 중복 확인 (대소문자 무시)
+  // 아이디 중복 (대소문자 무시)
   const { data: existing } = await db
     .from("community_users")
     .select("id")
@@ -49,17 +57,29 @@ export async function POST(req: NextRequest) {
       { status: 409 },
     );
   }
+  // 이메일 중복
+  const { data: emailTaken } = await db
+    .from("community_users")
+    .select("id")
+    .ilike("email", email)
+    .maybeSingle();
+  if (emailTaken) {
+    return NextResponse.json(
+      { ok: false, reason: "이미 가입된 이메일이에요." },
+      { status: 409 },
+    );
+  }
 
   const { data, error } = await db
     .from("community_users")
-    .insert({ username, password_hash: hashPassword(password) })
+    .insert({ username, email, password_hash: hashPassword(password) })
     .select("id, username")
     .single();
   if (error || !data) {
-    return NextResponse.json(
-      { ok: false, reason: error?.message || "가입에 실패했어요." },
-      { status: 500 },
-    );
+    const reason = /email|column/i.test(error?.message ?? "")
+      ? "이메일 가입 DB 설정이 아직 안 됐어요. supabase/email-schema.sql 을 실행해주세요."
+      : error?.message || "가입에 실패했어요.";
+    return NextResponse.json({ ok: false, reason }, { status: 500 });
   }
 
   const { token, maxAge } = signSession(String(data.id));

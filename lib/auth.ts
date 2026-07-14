@@ -104,3 +104,8 @@ export async function getUser(req: NextRequest): Promise<AuthUser | null> {
 export function validUsername(u: string): boolean {
   return /^[A-Za-z0-9_-]{3,20}$/.test(u);
 }
+
+// 이메일 형식 (gmail 등)
+export function validEmail(e: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 120;
+}

@@ -20,15 +20,23 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, reason: "bad-json" }, { status: 400 });
   }
-  const username = String(body.username ?? "").trim();
+  const id = String(body.username ?? "").trim();
   const password = String(body.password ?? "");
 
   const db = getAdminClient();
-  const { data: user } = await db
-    .from("community_users")
-    .select("id, username, password_hash")
-    .ilike("username", username)
-    .maybeSingle();
+  // 이메일(@ 포함)이면 이메일로, 아니면 아이디로 조회
+  const col = id.includes("@") ? "email" : "username";
+  let user: Record<string, unknown> | null = null;
+  try {
+    const { data } = await db
+      .from("community_users")
+      .select("id, username, password_hash")
+      .ilike(col, id)
+      .maybeSingle();
+    user = data as Record<string, unknown> | null;
+  } catch {
+    user = null;
+  }
 
   if (!user || !verifyPassword(password, String(user.password_hash))) {
     return NextResponse.json(

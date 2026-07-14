@@ -26,20 +26,30 @@ const PREVIEW: { id: string; text: string; trend?: "up" | "down" }[] = [
 export default function Auth({ onAuth }: { onAuth: (u: User) => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  const canSubmit =
+    mode === "login"
+      ? !!username.trim() && !!password
+      : !!email.trim() && !!username.trim() && !!password;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy || !username.trim() || !password) return;
+    if (busy || !canSubmit) return;
     setBusy(true);
     setErr("");
     try {
+      const body =
+        mode === "login"
+          ? { username: username.trim(), password }
+          : { username: username.trim(), email: email.trim(), password };
       const res = await fetch(`/api/auth/${mode === "login" ? "login" : "signup"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify(body),
       });
       const d = await res.json();
       if (!d.ok) {
@@ -103,12 +113,23 @@ export default function Auth({ onAuth }: { onAuth: (u: User) => void }) {
           </div>
 
           <form onSubmit={submit} className="mt-3 w-full max-w-sm">
+            {mode === "signup" && (
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                maxLength={120}
+                autoComplete="email"
+                placeholder="이메일 (예: name@gmail.com)"
+                className="mb-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-[16px] text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              />
+            )}
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              maxLength={20}
+              maxLength={mode === "login" ? 120 : 20}
               autoComplete="username"
-              placeholder="아이디"
+              placeholder={mode === "login" ? "아이디 또는 이메일" : "아이디 (닉네임)"}
               className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-[16px] text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
             />
             <input
@@ -123,7 +144,7 @@ export default function Auth({ onAuth }: { onAuth: (u: User) => void }) {
             {err && <p className="mt-2 text-[13px] font-medium text-[#e0245e]">{err}</p>}
             <button
               type="submit"
-              disabled={busy || !username.trim() || !password}
+              disabled={busy || !canSubmit}
               className="mt-3 w-full rounded-xl bg-indigo-600 py-3.5 text-[16px] font-bold text-white shadow-lg shadow-indigo-300/40 transition-colors hover:bg-indigo-700 disabled:opacity-40 disabled:shadow-none"
             >
               {busy ? "처리 중…" : mode === "login" ? "로그인" : "가입하고 시작하기"}
@@ -132,8 +153,8 @@ export default function Auth({ onAuth }: { onAuth: (u: User) => void }) {
 
           <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-zinc-400">
             {mode === "signup"
-              ? "아이디는 영문/숫자/_/- 3~20자, 비밀번호는 4자 이상이에요."
-              : "계정으로 어디서든 내 글·댓글을 관리할 수 있어요."}
+              ? "이메일로 가입해요. 아이디(닉네임)는 영문/숫자/_/- 3~20자, 비밀번호는 4자 이상."
+              : "이메일 또는 아이디로 로그인할 수 있어요."}
           </p>
         </div>
 

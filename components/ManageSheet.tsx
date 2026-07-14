@@ -58,6 +58,9 @@ export default function ManageSheet({
   onAiChange,
   theme,
   onThemeChange,
+  isAdmin = false,
+  adminNew = 0,
+  onOpenAdmin,
 }: {
   followed: string[];
   minFollow?: number;
@@ -71,6 +74,9 @@ export default function ManageSheet({
   onAiChange?: (next: string[]) => void;
   theme?: Theme;
   onThemeChange?: (t: Theme) => void;
+  isAdmin?: boolean;
+  adminNew?: number;
+  onOpenAdmin?: () => void;
 }) {
   const [warn, setWarn] = useState(false);
   const atMin = followed.length <= minFollow;
@@ -141,6 +147,28 @@ export default function ManageSheet({
               ))}
             </div>
           </div>
+        )}
+
+        {isAdmin && onOpenAdmin && (
+          <button
+            onClick={onOpenAdmin}
+            className="flex w-full items-center gap-2 border-b border-border px-4 py-3.5 text-left hover:bg-bg-soft"
+          >
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-accent/15 text-accent">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span className="flex-1 text-[15px] font-bold text-text">가입자 관리</span>
+            {adminNew > 0 && (
+              <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-[#f6465d] px-1.5 text-[11px] font-black text-white">
+                +{adminNew > 99 ? "99" : adminNew}
+              </span>
+            )}
+            <span className="text-[12px] text-muted">관리자</span>
+          </button>
         )}
 
         {onEditProfile && (

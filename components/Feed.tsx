@@ -17,6 +17,7 @@ import HScroll from "@/components/HScroll";
 import AiChat from "@/components/AiChat";
 import { AI_MAP, type AiApp } from "@/lib/ai";
 import { getStoredTheme, applyTheme, type Theme } from "@/lib/theme";
+import AdminUsers, { type Signup } from "@/components/AdminUsers";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 import {
@@ -86,6 +87,9 @@ export default function Feed({
   const [aiFollowed, setAiFollowed] = useState<string[]>([]);
   const [aiChat, setAiChat] = useState<AiApp | null>(null);
   const [theme, setTheme] = useState<Theme>("dark");
+  const [adminUsers, setAdminUsers] = useState<Signup[]>([]);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminSeen, setAdminSeen] = useState(0);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
   const sourceSetRef = useRef<"none" | "base" | "hidden">("none");
@@ -112,6 +116,39 @@ export default function Feed({
     setTheme(t);
     applyTheme(t);
   }, []);
+
+  // 관리자: 가입자 목록 로드 + 새 가입 알림 (관리자만)
+  const adminSeenKey = `stockfeed:adminSeen:${user.username}`;
+  useEffect(() => {
+    if (!user.isAdmin) return;
+    let seen = 0;
+    try {
+      seen = Number(localStorage.getItem(adminSeenKey) || "0");
+    } catch {
+      /* noop */
+    }
+    setAdminSeen(seen);
+    fetch("/api/admin/users", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) setAdminUsers(d.users as Signup[]);
+      })
+      .catch(() => {});
+  }, [user.isAdmin, adminSeenKey]);
+
+  const adminNew = adminUsers.filter((u) => u.createdAt > adminSeen).length;
+
+  const openAdmin = useCallback(() => {
+    setManage(false);
+    setAdminOpen(true);
+    const now = Date.now();
+    try {
+      localStorage.setItem(adminSeenKey, String(now));
+    } catch {
+      /* noop */
+    }
+    setAdminSeen(now);
+  }, [adminSeenKey]);
 
   const updateAiFollowed = useCallback(
     (next: string[]) => {
@@ -470,7 +507,7 @@ export default function Feed({
             <button
               onClick={() => setManage(true)}
               aria-label="내 계정"
-              className="ml-0.5"
+              className="relative ml-0.5"
               title={nickname}
             >
               <Avatar
@@ -479,6 +516,11 @@ export default function Feed({
                 color={user.profileColor}
                 size={32}
               />
+              {user.isAdmin && adminNew > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid h-[16px] min-w-[16px] place-items-center rounded-full border-2 border-bg bg-[#f6465d] px-1 text-[9px] font-black leading-none text-white">
+                  {adminNew > 99 ? "99+" : adminNew}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -808,7 +850,14 @@ export default function Feed({
           onAiChange={updateAiFollowed}
           theme={theme}
           onThemeChange={changeTheme}
+          isAdmin={user.isAdmin}
+          adminNew={adminNew}
+          onOpenAdmin={openAdmin}
         />
+      )}
+
+      {adminOpen && (
+        <AdminUsers users={adminUsers} onClose={() => setAdminOpen(false)} />
       )}
 
       {aiChat && <AiChat app={aiChat} onClose={() => setAiChat(null)} />}
