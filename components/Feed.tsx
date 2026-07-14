@@ -18,6 +18,7 @@ import AiChat from "@/components/AiChat";
 import { AI_MAP, type AiApp } from "@/lib/ai";
 import { getStoredTheme, applyTheme, type Theme } from "@/lib/theme";
 import AdminUsers, { type Signup } from "@/components/AdminUsers";
+import AdminReports from "@/components/AdminReports";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 import {
@@ -89,6 +90,7 @@ export default function Feed({
   const [theme, setTheme] = useState<Theme>("dark");
   const [adminUsers, setAdminUsers] = useState<Signup[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [adminSeen, setAdminSeen] = useState(0);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
@@ -853,12 +855,17 @@ export default function Feed({
           isAdmin={user.isAdmin}
           adminNew={adminNew}
           onOpenAdmin={openAdmin}
+          onOpenReports={() => {
+            setManage(false);
+            setReportsOpen(true);
+          }}
         />
       )}
 
       {adminOpen && (
         <AdminUsers users={adminUsers} onClose={() => setAdminOpen(false)} />
       )}
+      {reportsOpen && <AdminReports onClose={() => setReportsOpen(false)} />}
 
       {aiChat && <AiChat app={aiChat} onClose={() => setAiChat(null)} />}
 

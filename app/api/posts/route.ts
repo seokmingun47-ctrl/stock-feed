@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { cleanPostInput, rowToPost, attachAuthorProfiles } from "@/lib/community";
 import { getUser } from "@/lib/auth";
+import { getBlockedIds } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +34,13 @@ export async function GET(req: NextRequest) {
   if (error) {
     return NextResponse.json({ ok: false, reason: error.message, posts: [] });
   }
-  const posts = (data ?? []).map((r) => rowToPost(r as Record<string, unknown>));
+  let posts = (data ?? []).map((r) => rowToPost(r as Record<string, unknown>));
+
+  // 차단한 사용자 글 숨김
+  if (user) {
+    const blocked = await getBlockedIds(db, user.id);
+    if (blocked.size) posts = posts.filter((p) => !p.userId || !blocked.has(p.userId));
+  }
 
   // 내가 좋아요한 글 / 팔로우한 작성자 표시
   if (user && posts.length) {

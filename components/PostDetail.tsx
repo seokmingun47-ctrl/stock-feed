@@ -6,6 +6,8 @@ import { timeAgo } from "@/lib/format";
 import LikeButton from "./LikeButton";
 import FollowButton from "./FollowButton";
 import Avatar from "./Avatar";
+import ReportDialog from "./ReportDialog";
+import type { ReportTargetType } from "@/lib/moderation";
 
 function PersonIcon({ size = 28 }: { size?: number }) {
   return (
@@ -52,6 +54,11 @@ export default function PostDetail({
   const [loaded, setLoaded] = useState(false);
   const [following, setFollowing] = useState(post.following);
   const [followerCount, setFollowerCount] = useState(0);
+  const [report, setReport] = useState<{
+    type: ReportTargetType;
+    id: string;
+    label: string;
+  } | null>(null);
   const listEnd = useRef<HTMLDivElement>(null);
 
   const isNews = post.kind === "news";
@@ -145,12 +152,25 @@ export default function PostDetail({
           <span className="flex-1 text-[16px] font-bold text-text">
             {isNews ? "유저 뉴스" : "자유게시판"}
           </span>
-          {canManagePost && (
+          {canManagePost ? (
             <button
               onClick={deletePost}
               className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-semibold text-[#f6465d] hover:bg-[#f6465d]/10"
             >
               <TrashIcon /> 삭제
+            </button>
+          ) : (
+            <button
+              onClick={() =>
+                setReport({
+                  type: isNews ? "news" : "post",
+                  id: post.id,
+                  label: `${post.nickname}님의 글`,
+                })
+              }
+              className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-muted hover:text-[#f6465d]"
+            >
+              신고
             </button>
           )}
         </header>
@@ -275,13 +295,26 @@ export default function PostDetail({
                         <span className="text-[11px] text-muted">
                           {timeAgo(c.createdAt)}
                         </span>
-                        {canDel && (
+                        {canDel ? (
                           <button
                             onClick={() => deleteComment(c.id)}
                             className="ml-auto shrink-0 text-muted hover:text-[#f6465d]"
                             aria-label="댓글 삭제"
                           >
                             <TrashIcon size={14} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              setReport({
+                                type: "comment",
+                                id: c.id,
+                                label: `${c.nickname}님의 댓글`,
+                              })
+                            }
+                            className="ml-auto shrink-0 text-[11px] font-semibold text-muted hover:text-[#f6465d]"
+                          >
+                            신고
                           </button>
                         )}
                       </div>
@@ -317,6 +350,15 @@ export default function PostDetail({
           </div>
         </div>
       </div>
+
+      {report && (
+        <ReportDialog
+          targetType={report.type}
+          targetId={report.id}
+          targetLabel={report.label}
+          onClose={() => setReport(null)}
+        />
+      )}
     </div>
   );
 }

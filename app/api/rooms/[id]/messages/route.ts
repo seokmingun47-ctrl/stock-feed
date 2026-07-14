@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { rowToGroupMessage } from "@/lib/community";
 import { getUser } from "@/lib/auth";
+import { getBlockedIds } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,9 +42,16 @@ export async function GET(
   let rows = data ?? [];
   // after 없이 조회하면 desc라 → 시간순으로 뒤집기
   if (!after) rows = rows.slice().reverse();
-  const messages = rows.map((r) =>
+  let messages = rows.map((r) =>
     rowToGroupMessage(r as Record<string, unknown>),
   );
+  // 차단한 사용자 메시지 숨김
+  const me = await getUser(req);
+  if (me) {
+    const blocked = await getBlockedIds(db, me.id);
+    if (blocked.size)
+      messages = messages.filter((m) => !m.userId || !blocked.has(m.userId));
+  }
   return NextResponse.json({ ok: true, messages });
 }
 

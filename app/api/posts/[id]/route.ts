@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { rowToPost, rowToComment, attachAuthorProfiles } from "@/lib/community";
 import { getUser } from "@/lib/auth";
+import { getBlockedIds } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,14 +72,17 @@ export async function GET(
     .eq("post_id", id)
     .order("created_at", { ascending: true });
 
-  return NextResponse.json({
-    ok: true,
-    post,
-    followerCount,
-    comments: (commentRows ?? []).map((r) =>
-      rowToComment(r as Record<string, unknown>),
-    ),
-  });
+  let comments = (commentRows ?? []).map((r) =>
+    rowToComment(r as Record<string, unknown>),
+  );
+  // 차단한 사용자 댓글 숨김
+  if (user) {
+    const blocked = await getBlockedIds(db, user.id);
+    if (blocked.size)
+      comments = comments.filter((c) => !c.userId || !blocked.has(c.userId));
+  }
+
+  return NextResponse.json({ ok: true, post, followerCount, comments });
 }
 
 // 게시글 삭제 — 관리자 또는 작성자만

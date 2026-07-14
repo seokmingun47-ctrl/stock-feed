@@ -6,6 +6,7 @@ import NewsPostCard from "./NewsPostCard";
 import FollowButton from "./FollowButton";
 import PostDetail from "./PostDetail";
 import Avatar from "./Avatar";
+import ReportDialog from "./ReportDialog";
 
 // 유저 프로필/채널 — 작성자 이름을 누르면 열림. 그 유저의 뉴스 + 팔로우.
 export default function UserProfile({
@@ -31,7 +32,33 @@ export default function UserProfile({
   const [following, setFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
   const [detail, setDetail] = useState<Post | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const isMe = authorId === user.id;
+
+  useEffect(() => {
+    if (isMe) return;
+    fetch("/api/blocks", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setBlocked(!!d.blocked?.includes(authorId)))
+      .catch(() => {});
+  }, [authorId, isMe]);
+
+  const toggleBlock = async () => {
+    setMenuOpen(false);
+    const next = !blocked;
+    setBlocked(next);
+    try {
+      await fetch("/api/blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetId: authorId, block: next }),
+      });
+    } catch {
+      setBlocked(!next);
+    }
+  };
 
   const load = () => {
     fetch(`/api/authors/${authorId}`, { cache: "no-store" })
@@ -82,7 +109,54 @@ export default function UserProfile({
             </svg>
           </button>
           <span className="flex-1 text-[16px] font-bold text-text">프로필</span>
+          {!isMe && (
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label="더보기"
+                className="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-bg-soft hover:text-text"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="5" r="2" />
+                  <circle cx="12" cy="12" r="2" />
+                  <circle cx="12" cy="19" r="2" />
+                </svg>
+              </button>
+              {menuOpen && (
+                <>
+                  <button
+                    className="fixed inset-0 z-10 cursor-default"
+                    aria-label="닫기"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-10 z-20 w-36 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setReporting(true);
+                      }}
+                      className="block w-full px-4 py-2.5 text-left text-[14px] font-semibold text-text hover:bg-bg-soft"
+                    >
+                      신고하기
+                    </button>
+                    <button
+                      onClick={toggleBlock}
+                      className="block w-full border-t border-border px-4 py-2.5 text-left text-[14px] font-semibold text-[#f6465d] hover:bg-bg-soft"
+                    >
+                      {blocked ? "차단 해제" : "차단하기"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </header>
+
+        {blocked && (
+          <div className="border-b border-border bg-bg-soft px-4 py-2 text-center text-[13px] text-muted">
+            차단한 사용자예요. 이 사용자의 글·댓글·메시지가 숨겨집니다.
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           {/* 프로필 카드 */}
@@ -184,6 +258,15 @@ export default function UserProfile({
             setDetail(null);
             setNews((cur) => (cur ? cur.filter((p) => p.id !== id) : cur));
           }}
+        />
+      )}
+
+      {reporting && (
+        <ReportDialog
+          targetType="user"
+          targetId={authorId}
+          targetLabel={`${name} 사용자`}
+          onClose={() => setReporting(false)}
         />
       )}
     </div>

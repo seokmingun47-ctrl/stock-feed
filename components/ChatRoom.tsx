@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Room, GroupMessage, User } from "@/lib/community";
 import Avatar from "./Avatar";
 import RoomIcon from "./RoomIcon";
+import ReportDialog from "./ReportDialog";
 
 function fmtTime(ms: number): string {
   if (!ms) return "";
@@ -31,12 +32,29 @@ export default function ChatRoom({
   const [text, setText] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [msgAction, setMsgAction] = useState<GroupMessage | null>(null);
+  const [reporting, setReporting] = useState<GroupMessage | null>(null);
   const seenIds = useRef<Set<string>>(new Set());
   const lastTs = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
 
   const canManage = user.isAdmin || (!!room.ownerId && room.ownerId === user.id);
+
+  const blockUser = async (m: GroupMessage) => {
+    setMsgAction(null);
+    if (!m.userId) return;
+    setMessages((cur) => cur.filter((x) => x.userId !== m.userId));
+    try {
+      await fetch("/api/blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetId: m.userId, block: true }),
+      });
+    } catch {
+      /* noop */
+    }
+  };
 
   const scrollToBottom = (smooth = false) => {
     const el = listRef.current;
@@ -232,15 +250,19 @@ export default function ChatRoom({
                       {mine && (
                         <span className="text-[10px] text-muted">{fmtTime(m.createdAt)}</span>
                       )}
-                      <span
-                        className={`whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-[15px] leading-snug ${
-                          mine
-                            ? "rounded-br-md bg-accent text-white"
-                            : "rounded-bl-md bg-bg-soft text-text"
-                        }`}
-                      >
-                        {m.body}
-                      </span>
+                      {mine ? (
+                        <span className="whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-accent px-3 py-2 text-[15px] leading-snug text-white">
+                          {m.body}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setMsgAction(m)}
+                          className="whitespace-pre-wrap break-words rounded-2xl rounded-bl-md bg-bg-soft px-3 py-2 text-left text-[15px] leading-snug text-text"
+                          title="신고/차단"
+                        >
+                          {m.body}
+                        </button>
+                      )}
                       {!mine && (
                         <span className="text-[10px] text-muted">{fmtTime(m.createdAt)}</span>
                       )}
@@ -275,6 +297,53 @@ export default function ChatRoom({
           </div>
         </div>
       </div>
+
+      {/* 메시지 액션 (신고/차단) */}
+      {msgAction && (
+        <div
+          className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60"
+          onClick={() => setMsgAction(null)}
+        >
+          <div
+            className="sheet-up mx-auto w-full max-w-[600px] rounded-t-2xl border-t border-border bg-bg pb-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 text-center text-[13px] text-muted">
+              {msgAction.nickname}님
+            </div>
+            <button
+              onClick={() => {
+                setReporting(msgAction);
+                setMsgAction(null);
+              }}
+              className="block w-full border-t border-border px-4 py-3.5 text-center text-[15px] font-semibold text-text hover:bg-bg-soft"
+            >
+              메시지 신고
+            </button>
+            <button
+              onClick={() => blockUser(msgAction)}
+              className="block w-full border-t border-border px-4 py-3.5 text-center text-[15px] font-semibold text-[#f6465d] hover:bg-bg-soft"
+            >
+              이 사용자 차단
+            </button>
+            <button
+              onClick={() => setMsgAction(null)}
+              className="block w-full border-t border-border px-4 py-3.5 text-center text-[15px] text-muted hover:bg-bg-soft"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reporting && (
+        <ReportDialog
+          targetType="message"
+          targetId={reporting.id}
+          targetLabel={`${reporting.nickname}님의 메시지`}
+          onClose={() => setReporting(null)}
+        />
+      )}
     </div>
   );
 }
