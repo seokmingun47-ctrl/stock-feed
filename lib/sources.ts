@@ -95,7 +95,9 @@ export const SOURCES: Source[] = [
     handle: "@hanitweet",
     category: "경제",
     region: "kr",
-    url: "https://www.hani.co.kr/rss/economy/",
+    // ⚠️ hani.co.kr 직접 RSS는 단독 fetch는 되지만 여러 소스 동시 로드 시 데이터센터(Vercel) IP에서
+    // 느려 9초 타임아웃으로 통째 누락됨(2026-07-11). → 구글뉴스 site: 검색으로 안정화(한국경제 방식).
+    url: "https://news.google.com/rss/search?q=site%3Ahani.co.kr%20(%EC%A6%9D%EC%8B%9C%20OR%20%EC%A3%BC%EC%8B%9D%20OR%20%EC%BD%94%EC%8A%A4%ED%94%BC%20OR%20%EC%A2%85%EB%AA%A9%20OR%20%EC%A3%BC%EA%B0%80%20OR%20%EA%B8%88%EB%A6%AC%20OR%20%ED%99%98%EC%9C%A8)%20when%3A3d&hl=ko&gl=KR&ceid=KR:ko",
     domain: "hani.co.kr",
     color: "#d0111b",
   },
