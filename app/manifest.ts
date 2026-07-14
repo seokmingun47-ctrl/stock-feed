@@ -3,6 +3,7 @@ import type { MetadataRoute } from "next";
 // PWA 매니페스트 — /manifest.webmanifest 로 제공됨 (홈 화면 설치 + Play Store TWA용)
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "Newsync — 증권 뉴스",
     short_name: "Newsync",
     description: "국내외 증권 뉴스를 앱 하나에서 — 실시간 통합 피드·AI 분석·시장",

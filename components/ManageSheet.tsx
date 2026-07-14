@@ -283,6 +283,12 @@ export default function ManageSheet({
             </div>
           </div>
         )}
+
+        <div className="mt-4 flex items-center justify-center gap-3 px-4 pb-1 text-[12px] text-muted">
+          <a href="/privacy" className="hover:text-text">개인정보처리방침</a>
+          <span>·</span>
+          <a href="/terms" className="hover:text-text">이용약관</a>
+        </div>
       </div>
     </div>
   );
