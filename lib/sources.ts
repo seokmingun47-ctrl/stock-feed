@@ -89,6 +89,28 @@ export const SOURCES: Source[] = [
     domain: "einfomax.co.kr",
     color: "#003a70",
   },
+  {
+    id: "hani",
+    name: "한겨레",
+    handle: "@hanitweet",
+    category: "경제",
+    region: "kr",
+    url: "https://www.hani.co.kr/rss/economy/",
+    domain: "hani.co.kr",
+    color: "#d0111b",
+  },
+  {
+    id: "mt",
+    name: "머니투데이",
+    handle: "@mt_moneytoday",
+    category: "증권",
+    region: "kr",
+    // mt.co.kr RSS는 종목 특화 피드가 없어(일반 피드에 스포츠 섞임) → 구글뉴스 site: 검색으로 증시 기사만
+    // (리더가 gnews 링크 해석 → 실제 mt.co.kr 본문 추출. 한국경제와 동일 방식)
+    url: "https://news.google.com/rss/search?q=site%3Amt.co.kr%20(%EC%A6%9D%EC%8B%9C%20OR%20%EC%A3%BC%EC%8B%9D%20OR%20%EC%BD%94%EC%8A%A4%ED%94%BC%20OR%20%EC%A2%85%EB%AA%A9%20OR%20%EC%A3%BC%EA%B0%80)%20when%3A3d&hl=ko&gl=KR&ceid=KR:ko",
+    domain: "mt.co.kr",
+    color: "#e2231a",
+  },
   // ── 해외 🌐 ──
   // (Investing.com 제거 — 사이트가 봇 차단(Cloudflare)으로 본문·요약을 전혀 안 줘
   //  인앱에서 못 읽고 항상 원문 이동만 됨. 2026-07-04)
@@ -202,6 +224,26 @@ export const SOURCES: Source[] = [
     url: "https://www.coindesk.com/arc/outboundfeeds/rss/",
     domain: "coindesk.com",
     color: "#f5b60c",
+  },
+  {
+    id: "theverge",
+    name: "The Verge",
+    handle: "@verge",
+    category: "Tech",
+    region: "global",
+    url: "https://www.theverge.com/rss/index.xml",
+    domain: "theverge.com",
+    color: "#5200ff",
+  },
+  {
+    id: "techcrunch",
+    name: "TechCrunch",
+    handle: "@TechCrunch",
+    category: "Tech",
+    region: "global",
+    url: "https://techcrunch.com/feed/",
+    domain: "techcrunch.com",
+    color: "#0a8f3c",
   },
   {
     id: "truthsocial",

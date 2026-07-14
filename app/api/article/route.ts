@@ -21,6 +21,8 @@ const ALLOWED = [
   "npr.org",
   "theguardian.com",
   "coindesk.com",
+  "theverge.com",
+  "techcrunch.com",
   // 국내
   "hankyung.com",
   "yna.co.kr",
@@ -30,6 +32,8 @@ const ALLOWED = [
   "mk.co.kr",
   "asiae.co.kr",
   "einfomax.co.kr",
+  "hani.co.kr",
+  "mt.co.kr",
 ];
 
 function allowed(host: string): boolean {
