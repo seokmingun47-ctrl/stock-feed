@@ -1,0 +1,194 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { LogoMark } from "@/components/Logo";
+
+interface Plan {
+  name: string;
+  tagline: string;
+  price: number;
+  credits: string;
+  per: string;
+  uses: string;
+  recommend: boolean;
+  features: string[];
+  cta: string;
+  free?: boolean;
+}
+
+const PLANS: Plan[] = [
+  {
+    name: "무료",
+    tagline: "가볍게 시작하고 싶은 분께.",
+    price: 0,
+    credits: "2,000",
+    per: "가입 시 지급",
+    uses: "AI 약 80회",
+    recommend: false,
+    free: true,
+    features: [
+      "국내외 뉴스 · 한국어 번역",
+      "시장 시세 · 차트 · 종목 검색",
+      "커뮤니티 · 그룹방",
+      "AI 요약 · 종목분석 · 시장분석 (1회 25크레딧)",
+    ],
+    cta: "현재 이용 중",
+  },
+  {
+    name: "프로",
+    tagline: "AI를 마음껏 쓰고 싶은 분께.",
+    price: 4900,
+    credits: "10,000",
+    per: "매월 자동 충전",
+    uses: "AI 약 400회",
+    recommend: true,
+    features: [
+      "무료 플랜의 모든 기능",
+      "매월 10,000 크레딧 충전",
+      "AI 요약 · 종목분석 · 시장분석 넉넉하게",
+      "우선 응답",
+    ],
+    cta: "프로 시작하기",
+  },
+];
+
+export default function PricingPage() {
+  const [notice, setNotice] = useState(false);
+
+  return (
+    <main className="min-h-screen bg-bg text-text">
+      {/* 상단 바 */}
+      <header className="mx-auto flex max-w-[1000px] items-center justify-between px-5 py-4">
+        <Link href="/" className="flex items-center gap-2">
+          <LogoMark size={30} />
+          <span className="text-[18px] font-extrabold tracking-tight">
+            <span className="text-text">New</span>
+            <span className="text-accent">sync</span>
+          </span>
+        </Link>
+        <Link
+          href="/"
+          className="rounded-full border border-border px-4 py-1.5 text-[13px] font-semibold text-muted hover:text-text"
+        >
+          앱으로
+        </Link>
+      </header>
+
+      {/* 헤드라인 */}
+      <div className="px-5 pb-6 pt-8 text-center">
+        <h1 className="text-[30px] font-extrabold leading-tight sm:text-[38px]">
+          AI 분석을 <span className="text-accent">마음껏</span>.
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-muted">
+          뉴스 요약, 종목 분석, 시장 전망까지.
+          <br />
+          크레딧이 부족하면 프로로 넉넉하게 이어가세요.
+        </p>
+      </div>
+
+      {/* 요금제 카드 */}
+      <div className="mx-auto grid max-w-[820px] gap-4 px-5 pb-16 sm:grid-cols-2">
+        {PLANS.map((p) => (
+          <div
+            key={p.name}
+            className={`relative flex flex-col rounded-2xl border bg-card p-6 ${
+              p.recommend ? "border-accent" : "border-border"
+            }`}
+          >
+            {p.recommend && (
+              <span className="absolute right-5 top-5 rounded-full bg-accent px-2.5 py-1 text-[11px] font-bold text-white">
+                추천
+              </span>
+            )}
+            <div className="text-[20px] font-extrabold">{p.name}</div>
+            <p className="mt-1 text-[13.5px] text-muted">{p.tagline}</p>
+
+            <div className="mt-5 flex items-end gap-1">
+              <span className="text-[34px] font-extrabold leading-none">
+                {p.price === 0 ? "0원" : `${p.price.toLocaleString()}원`}
+              </span>
+              {!p.free && (
+                <span className="mb-1 text-[14px] text-muted"> / 월</span>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between border-y border-border py-3">
+              <span className="text-[18px] font-extrabold text-accent">
+                {p.credits}
+                <span className="ml-1 text-[13px] font-semibold text-muted">
+                  크레딧
+                </span>
+              </span>
+              <span className="text-[12px] text-muted">{p.uses}</span>
+            </div>
+            <div className="mt-1 text-[11.5px] text-muted">{p.per}</div>
+
+            <ul className="mt-4 flex-1 space-y-2.5">
+              {p.features.map((f) => (
+                <li key={f} className="flex gap-2 text-[13.5px] leading-snug">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke={p.recommend ? "var(--accent)" : "var(--muted)"}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mt-0.5 shrink-0"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              onClick={() => !p.free && setNotice(true)}
+              disabled={p.free}
+              className={`mt-6 w-full rounded-xl py-3 text-[15px] font-bold transition-colors ${
+                p.free
+                  ? "cursor-default border border-border text-muted"
+                  : "bg-accent text-white hover:opacity-90"
+              }`}
+            >
+              {p.cta}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* 결제 안내 */}
+      <p className="mx-auto max-w-md px-5 pb-16 text-center text-[12px] leading-relaxed text-muted">
+        언제든 해지할 수 있어요. 결제·구독은 앱 정식 출시(스토어 등록) 후 제공됩니다.
+      </p>
+
+      {/* 준비중 안내 */}
+      {notice && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
+          onClick={() => setNotice(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-[17px] font-bold">곧 만나요</div>
+            <p className="mt-2 text-[14px] leading-relaxed text-muted">
+              프로 구독 결제는 앱 정식 출시 후 제공될 예정이에요. 그때까지는 무료
+              크레딧으로 이용할 수 있어요.
+            </p>
+            <button
+              onClick={() => setNotice(false)}
+              className="mt-4 w-full rounded-xl bg-accent py-2.5 text-[14px] font-bold text-white"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

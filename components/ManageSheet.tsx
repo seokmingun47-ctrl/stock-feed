@@ -162,15 +162,20 @@ export default function ManageSheet({
                 </svg>
               </span>
               <div>
-                <div className="text-[15px] font-bold text-text">AI 크레딧</div>
+                <div className="text-[15px] font-bold text-text">
+                  AI 크레딧 <span className="text-accent">{credits.toLocaleString()}</span>
+                </div>
                 <div className="text-[11.5px] text-muted">
                   요약·종목분석·시장분석 1회에 25
                 </div>
               </div>
             </div>
-            <span className="text-[17px] font-black text-accent">
-              {credits.toLocaleString()}
-            </span>
+            <a
+              href="/pricing"
+              className="rounded-full bg-accent px-3.5 py-1.5 text-[13px] font-bold text-white"
+            >
+              프로
+            </a>
           </div>
         )}
 
