@@ -69,11 +69,13 @@ export default function StockDetail({
   translate,
   user,
   onClose,
+  valuationMode,
 }: {
   stock: QuotedStock;
   translate: boolean;
   user: User;
   onClose: () => void;
+  valuationMode?: "under" | "over";
 }) {
   const [period, setPeriod] = useState<Period>("day");
   const [candles, setCandles] = useState<Candle[] | null>(null);
@@ -85,6 +87,37 @@ export default function StockDetail({
   const [analyzing, setAnalyzing] = useState(false);
   const [aiErr, setAiErr] = useState("");
   const [reader, setReader] = useState<Article | null>(null);
+  const [valReason, setValReason] = useState<{ summary: string; points: string[] } | null>(null);
+  const [valBusy, setValBusy] = useState(false);
+  const [valErr, setValErr] = useState("");
+
+  const runValuation = async () => {
+    if (valBusy) return;
+    setValBusy(true);
+    setValErr("");
+    try {
+      const d = await fetch("/api/valuation-reason", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: stock.name,
+          symbol: stock.symbol,
+          domestic: stock.domestic,
+          price: stock.price ?? "",
+          mode: valuationMode,
+        }),
+      }).then((r) => r.json());
+      if (!d.ok) {
+        setValErr(d.reason || "분석에 실패했어요.");
+        return;
+      }
+      setValReason(d.reason);
+    } catch {
+      setValErr("네트워크 오류예요. 다시 시도해 주세요.");
+    } finally {
+      setValBusy(false);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -272,54 +305,75 @@ export default function StockDetail({
             </div>
           )}
 
-          {/* AI 분석 */}
+          {/* AI 분석 — 밸류에이션 이유 모드 vs 주가 전망 모드 */}
           <div className="px-4">
-            {!analysis && !analyzing && (
-              <button
-                onClick={runAnalysis}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#14c38e] to-[#0d8f6f] py-3.5 text-[15px] font-bold text-white"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" />
-                </svg>
-                AI 분석 · 주가 전망 보기
-              </button>
-            )}
-
-            {analyzing && (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-bg-soft py-8">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" className="spin">
-                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                </svg>
-                <p className="text-[13px] text-muted">
-                  {stock.name} 관련 뉴스와 전망 분석 중…
-                </p>
-              </div>
-            )}
-
-            {aiErr && !analyzing && (
-              <div className="rounded-xl border border-border bg-bg-soft p-4 text-center">
-                <p className="text-[13px] text-[var(--down)]">{aiErr}</p>
-                <button
-                  onClick={runAnalysis}
-                  className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white"
-                >
-                  다시 시도
-                </button>
-              </div>
-            )}
-
-            {analysis && (
-              <AnalysisCard
-                a={analysis}
-                target={target}
-                currency={stock.currency}
-              />
+            {valuationMode ? (
+              <>
+                {!valReason && !valBusy && (
+                  <button
+                    onClick={runValuation}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#14c38e] to-[#0d8f6f] py-3.5 text-[15px] font-bold text-white"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" />
+                    </svg>
+                    AI 분석 · {valuationMode === "under" ? "저평가" : "고평가"}인 이유
+                  </button>
+                )}
+                {valBusy && (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-bg-soft py-8">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" className="spin">
+                      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                    </svg>
+                    <p className="text-[13px] text-muted">객관적 지표 비교 분석 중…</p>
+                  </div>
+                )}
+                {valErr && !valBusy && (
+                  <div className="rounded-xl border border-border bg-bg-soft p-4 text-center">
+                    <p className="text-[13px] text-[var(--down)]">{valErr}</p>
+                    <button onClick={runValuation} className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white">
+                      다시 시도
+                    </button>
+                  </div>
+                )}
+                {valReason && <ValuationReasonCard reason={valReason} mode={valuationMode} />}
+              </>
+            ) : (
+              <>
+                {!analysis && !analyzing && (
+                  <button
+                    onClick={runAnalysis}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#14c38e] to-[#0d8f6f] py-3.5 text-[15px] font-bold text-white"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" />
+                    </svg>
+                    AI 분석 · 주가 전망 보기
+                  </button>
+                )}
+                {analyzing && (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-bg-soft py-8">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" className="spin">
+                      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                    </svg>
+                    <p className="text-[13px] text-muted">{stock.name} 관련 뉴스와 전망 분석 중…</p>
+                  </div>
+                )}
+                {aiErr && !analyzing && (
+                  <div className="rounded-xl border border-border bg-bg-soft p-4 text-center">
+                    <p className="text-[13px] text-[var(--down)]">{aiErr}</p>
+                    <button onClick={runAnalysis} className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white">
+                      다시 시도
+                    </button>
+                  </div>
+                )}
+                {analysis && <AnalysisCard a={analysis} target={target} currency={stock.currency} />}
+              </>
             )}
           </div>
 
-          {/* 관련 뉴스 */}
-          {news.length > 0 && (
+          {/* 관련 뉴스 (전망 모드에서만) */}
+          {!valuationMode && news.length > 0 && (
             <div className="mt-5 px-4">
               <h3 className="mb-2 text-[14px] font-bold text-text">관련 뉴스</h3>
               <div className="space-y-2">
@@ -353,6 +407,42 @@ export default function StockDetail({
           onClose={() => setReader(null)}
         />
       )}
+    </div>
+  );
+}
+
+function ValuationReasonCard({
+  reason,
+  mode,
+}: {
+  reason: { summary: string; points: string[] };
+  mode: "under" | "over";
+}) {
+  const color = mode === "under" ? "#14c38e" : "#f6465d";
+  const title = mode === "under" ? "저평가 근거" : "고평가 근거";
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-bg-soft">
+      <div className="border-b border-border p-4">
+        <div className="text-[12px] font-bold" style={{ color }}>
+          {title} · 객관적 지표 기준
+        </div>
+        {reason.summary && (
+          <p className="mt-1.5 text-[14px] leading-relaxed text-text">{reason.summary}</p>
+        )}
+      </div>
+      {reason.points.length > 0 && (
+        <ul className="space-y-2 p-4">
+          {reason.points.map((p, i) => (
+            <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
+              <span style={{ color }}>•</span>
+              <span>{p}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="bg-bg px-4 py-2.5 text-[11px] leading-relaxed text-muted">
+        ※ PER·PBR·애널리스트 컨센서스 등 <b>객관적 지표만</b> 비교한 결과예요. PER 기준 분류이며 투자 권유가 아닙니다.
+      </p>
     </div>
   );
 }

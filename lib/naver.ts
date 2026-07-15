@@ -132,6 +132,71 @@ export async function getStockDetail(
   return { info, per: toNum(info["PER"]), pbr: toNum(info["PBR"]), changeRate: rate };
 }
 
+// 밸류에이션 근거용 객관적 데이터 (지표 + 동종업계 PER/PBR + 애널리스트 컨센서스)
+export interface ValuationContext {
+  per: string | null;
+  pbr: string | null;
+  eps: string | null;
+  dividend: string | null;
+  marketCap: string | null;
+  industry: string | null;
+  high52: string | null;
+  low52: string | null;
+  targetPrice: string | null; // 애널리스트 목표주가 평균
+  recommMean: string | null; // 투자의견 평균 (1 강력매수 ~ 5 강력매도)
+  peers: { name: string; per: string | null; pbr: string | null }[];
+}
+export async function getValuationContext(
+  symbol: string,
+  domestic: boolean,
+): Promise<ValuationContext | null> {
+  const detail = await getStockDetail(symbol, domestic);
+  if (!detail) return null;
+  const info = detail.info;
+  const ctx: ValuationContext = {
+    per: info["PER"] ?? null,
+    pbr: info["PBR"] ?? null,
+    eps: info["EPS"] ?? null,
+    dividend: info["배당수익률"] ?? null,
+    marketCap: info["시총"] ?? null,
+    industry: info["업종"] ?? null,
+    high52: info["52주 최고"] ?? null,
+    low52: info["52주 최저"] ?? null,
+    targetPrice: null,
+    recommMean: null,
+    peers: [],
+  };
+  if (domestic) {
+    const j = (await jget(
+      `https://m.stock.naver.com/api/stock/${symbol}/integration`,
+    )) as Record<string, unknown> | null;
+    const cons = j?.consensusInfo as
+      | { priceTargetMean?: string; recommMean?: string }
+      | undefined;
+    if (cons) {
+      ctx.targetPrice = cons.priceTargetMean ?? null;
+      ctx.recommMean = cons.recommMean ?? null;
+    }
+    const peersRaw = Array.isArray(j?.industryCompareInfo)
+      ? (j!.industryCompareInfo as Array<Record<string, unknown>>)
+          .filter((p) => String(p.itemCode) !== symbol)
+          .slice(0, 3)
+      : [];
+    ctx.peers = await Promise.all(
+      peersRaw.map(async (p) => {
+        const code = String(p.reutersCode ?? p.itemCode ?? "");
+        const pd = code ? await getStockDetail(code, true) : null;
+        return {
+          name: String(p.stockName ?? ""),
+          per: pd?.info["PER"] ?? null,
+          pbr: pd?.info["PBR"] ?? null,
+        };
+      }),
+    );
+  }
+  return ctx;
+}
+
 // 국내 급등/급락 순위 (네이버 실제 상승률/하락률 랭킹, KOSPI+KOSDAQ 합산)
 export interface MoverStock {
   name: string;

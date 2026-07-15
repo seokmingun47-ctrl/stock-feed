@@ -54,7 +54,13 @@ export default function Market({
   const [stocks, setStocks] = useState<QuotedStock[] | null>(null);
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<QuotedStock | null>(null);
+  const [openMode, setOpenMode] = useState<"under" | "over" | undefined>(undefined);
   const [credits, setCredits] = useState<number | null>(null);
+
+  const openStock = (s: QuotedStock, mode?: "under" | "over") => {
+    setOpenMode(mode);
+    setOpen(s);
+  };
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<QuotedStock[] | null>(null);
@@ -349,12 +355,12 @@ export default function Market({
                 <Empty title="데이터를 불러오지 못했어요" desc="잠시 후 다시 시도해 주세요." />
               ) : (
                 valuation.undervalued.map((s) => (
-                  <Row key={s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => setOpen(s)} per={s.per} pbr={s.pbr} />
+                  <Row key={s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => openStock(s, "under")} per={s.per} pbr={s.pbr} />
                 ))
               )}
               <SectionHeader>고평가 · PER 높은 순</SectionHeader>
               {valuation.overvalued.map((s) => (
-                <Row key={s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => setOpen(s)} per={s.per} pbr={s.pbr} />
+                <Row key={s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => openStock(s, "over")} per={s.per} pbr={s.pbr} />
               ))}
               <p className="px-4 py-4 text-center text-[11px] text-muted">
                 PER·PBR은 참고용 지표예요. 업종·성장성에 따라 적정 밸류는 달라집니다.
@@ -378,7 +384,16 @@ export default function Market({
       </main>
 
       {open && (
-        <StockDetail stock={open} translate={translate} user={user} onClose={() => setOpen(null)} />
+        <StockDetail
+          stock={open}
+          translate={translate}
+          user={user}
+          valuationMode={openMode}
+          onClose={() => {
+            setOpen(null);
+            setOpenMode(undefined);
+          }}
+        />
       )}
     </div>
   );
