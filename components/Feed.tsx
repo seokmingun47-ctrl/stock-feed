@@ -752,29 +752,6 @@ export default function Feed({
       ) : null}
 
       <main className="flex-1 pb-16">
-        {!activeAuthorId && credits !== null && (
-          <a
-            href="/pricing"
-            className="mx-4 mb-1 mt-3 flex items-center gap-3 rounded-2xl border border-accent/40 bg-gradient-to-r from-accent/20 to-[#18b6e6]/10 px-4 py-3"
-          >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-white">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
-              </svg>
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-bold text-text">
-                프로로 업그레이드 · AI 마음껏
-              </div>
-              <div className="truncate text-[12px] text-muted">
-                뉴스 요약·종목분석·시장분석을 넉넉하게 · 월 4,900원
-              </div>
-            </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-accent">
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </a>
-        )}
         {activeAuthorId ? (
           activeAuthor ? (
             <UserNewsFeed
