@@ -91,12 +91,16 @@ export default function Market({
         <div className="flex items-center justify-between">
           <h1 className="text-[19px] font-extrabold tracking-tight text-text">시장</h1>
           {credits !== null && (
-            <span className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent">
+            <a
+              href="/pricing"
+              title="AI 크레딧 · 요금제"
+              className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent hover:bg-card"
+            >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
               </svg>
               {credits.toLocaleString()}
-            </span>
+            </a>
           )}
         </div>
         <p className="mb-2.5 text-[12px] text-muted">

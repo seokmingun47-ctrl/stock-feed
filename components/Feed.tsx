@@ -507,16 +507,16 @@ export default function Feed({
               <RefreshIcon spinning={loading} />
             </button>
             {credits !== null && (
-              <button
-                onClick={() => setManage(true)}
-                title="AI 크레딧"
+              <a
+                href="/pricing"
+                title="AI 크레딧 · 요금제"
                 className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent hover:bg-card"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
                 </svg>
                 {credits.toLocaleString()}
-              </button>
+              </a>
             )}
             <button
               onClick={() => setNotifOpen(true)}
