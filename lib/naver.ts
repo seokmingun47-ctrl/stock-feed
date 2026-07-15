@@ -97,6 +97,41 @@ export async function searchMarket(q: string): Promise<MarketHit[]> {
     .filter((h) => h.name && h.symbol);
 }
 
+// 종목 상세 지표 (시총·거래량·52주·PER·PBR·배당 등)
+export interface StockDetail {
+  info: Record<string, string>; // 한글 지표명 → 표시값 (예: {"시총":"1,634조", "PER":"22.59배"})
+  per: number | null;
+  pbr: number | null;
+  changeRate: number | null;
+}
+function toNum(s?: string): number | null {
+  if (!s) return null;
+  const n = parseFloat(s.replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+export async function getStockDetail(
+  symbol: string,
+  domestic: boolean,
+): Promise<StockDetail | null> {
+  const url = domestic
+    ? `https://m.stock.naver.com/api/stock/${symbol}/integration`
+    : `https://api.stock.naver.com/stock/${encodeURIComponent(symbol)}/basic`;
+  const j = (await jget(url)) as Record<string, unknown> | null;
+  if (!j) return null;
+  const arr = (domestic ? j.totalInfos : j.stockItemTotalInfos) as
+    | Array<{ key?: string; code?: string; value?: string }>
+    | undefined;
+  if (!Array.isArray(arr)) return null;
+  const info: Record<string, string> = {};
+  for (const it of arr) {
+    const k = String(it.key ?? it.code ?? "").trim();
+    const v = String(it.value ?? "").trim();
+    if (k && v) info[k] = v;
+  }
+  const rate = domestic ? null : toNum(String(j.fluctuationsRatio ?? ""));
+  return { info, per: toNum(info["PER"]), pbr: toNum(info["PBR"]), changeRate: rate };
+}
+
 export interface Quote {
   price: string; // 표시용 (국내 "296,000", 해외 "193.13")
   changeRate: number; // 등락률 (%)

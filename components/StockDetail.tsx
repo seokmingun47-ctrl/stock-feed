@@ -79,6 +79,7 @@ export default function StockDetail({
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [chartErr, setChartErr] = useState(false);
 
+  const [metrics, setMetrics] = useState<Record<string, string> | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [news, setNews] = useState<Article[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
@@ -95,6 +96,25 @@ export default function StockDetail({
       document.body.style.overflow = prev;
     };
   }, [onClose]);
+
+  // 주요 지표 (시총·거래량·52주·PER·PBR·배당)
+  useEffect(() => {
+    let alive = true;
+    setMetrics(null);
+    fetch(
+      `/api/stock-detail?symbol=${encodeURIComponent(stock.symbol)}&domestic=${
+        stock.domestic ? 1 : 0
+      }`,
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive && d.ok && d.detail?.info) setMetrics(d.detail.info);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [stock.symbol, stock.domestic]);
 
   // 차트
   useEffect(() => {
@@ -232,6 +252,25 @@ export default function StockDetail({
               <Candles data={candles} period={period} />
             )}
           </div>
+
+          {/* 주요 지표 */}
+          {metrics && (
+            <div className="mb-4 px-4">
+              <h3 className="mb-2 text-[14px] font-bold text-text">주요 지표</h3>
+              <div className="grid grid-cols-2 gap-x-5 gap-y-2.5 rounded-xl border border-border bg-bg-soft p-4">
+                {["시총", "거래량", "52주 최고", "52주 최저", "PER", "PBR", "EPS", "배당수익률"]
+                  .filter((k) => metrics[k])
+                  .map((k) => (
+                    <div key={k} className="flex items-center justify-between gap-2 text-[13px]">
+                      <span className="shrink-0 text-muted">{k}</span>
+                      <span className="truncate text-right font-semibold text-text">
+                        {metrics[k]}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* AI 분석 */}
           <div className="px-4">
