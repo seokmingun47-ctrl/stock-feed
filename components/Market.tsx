@@ -56,6 +56,7 @@ export default function Market({
   const [open, setOpen] = useState<QuotedStock | null>(null);
   const [openMode, setOpenMode] = useState<"under" | "over" | undefined>(undefined);
   const [credits, setCredits] = useState<number | null>(null);
+  const [isPro, setIsPro] = useState(!!user.isPro);
 
   const openStock = (s: QuotedStock, mode?: "under" | "over") => {
     setOpenMode(mode);
@@ -147,15 +148,19 @@ export default function Market({
     return () => clearInterval(t);
   }, [region, view]);
 
-  // 저평가/고평가
+  // 저평가/고평가 (프로 전용 — 비프로는 조회하지 않음)
   useEffect(() => {
     if (view !== "value") return;
+    if (!isPro) {
+      setValuation(null);
+      return;
+    }
     setValuation(null);
     fetch(`/api/market-valuation?region=${region}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setValuation(d.ok ? d : { undervalued: [], overvalued: [] }))
       .catch(() => setValuation({ undervalued: [], overvalued: [] }));
-  }, [region, view]);
+  }, [region, view, isPro]);
 
   // 관심종목 시세
   useEffect(() => {
@@ -175,11 +180,14 @@ export default function Market({
       .catch(() => setWatchStocks([]));
   }, [view, watch]);
 
-  // 크레딧
+  // 크레딧 + 프로 여부
   useEffect(() => {
     fetch("/api/credits", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setCredits(d.credits ?? null))
+      .then((d) => {
+        setCredits(d.credits ?? null);
+        setIsPro(!!d.isPro);
+      })
       .catch(() => {});
   }, [open]);
 
@@ -346,7 +354,9 @@ export default function Market({
             </>
           )
         ) : view === "value" ? (
-          valuation === null ? (
+          !isPro ? (
+            <ProLockedValue />
+          ) : valuation === null ? (
             <SkeletonRows />
           ) : (
             <>
@@ -452,6 +462,99 @@ function Row({
           )}
         </div>
       </button>
+    </div>
+  );
+}
+
+// 저평가·고평가 프로 잠금 (Investing 스타일 모자이크)
+function ProLockedValue() {
+  // 뒤에 흐릿하게 깔리는 가짜 미리보기 행들
+  const teaser = [
+    { badge: "저평가", per: "8.1", chg: "+3.24%", up: true },
+    { badge: "저평가", per: "6.4", chg: "+1.87%", up: true },
+    { badge: "저평가", per: "9.2", chg: "-0.53%", up: false },
+    { badge: "저평가", per: "7.5", chg: "+2.10%", up: true },
+    { badge: "고평가", per: "88.0", chg: "-1.42%", up: false },
+    { badge: "고평가", per: "142.6", chg: "+0.31%", up: true },
+    { badge: "고평가", per: "76.3", chg: "-2.05%", up: false },
+    { badge: "고평가", per: "302.9", chg: "+4.12%", up: true },
+  ];
+  return (
+    <div className="relative">
+      {/* 흐릿한 미리보기 */}
+      <div
+        className="select-none blur-[6px]"
+        style={{ filter: "blur(6px)" }}
+        aria-hidden
+      >
+        <SectionHeader>저평가 · PER 낮은 순</SectionHeader>
+        {teaser.slice(0, 4).map((t, i) => (
+          <TeaserRow key={"u" + i} {...t} />
+        ))}
+        <SectionHeader>고평가 · PER 높은 순</SectionHeader>
+        {teaser.slice(4).map((t, i) => (
+          <TeaserRow key={"o" + i} {...t} />
+        ))}
+      </div>
+
+      {/* 잠금 오버레이 */}
+      <div className="absolute inset-0 flex items-start justify-center px-6 pt-16">
+        <div className="w-full max-w-[340px] rounded-2xl border border-border bg-card/95 p-6 text-center shadow-xl backdrop-blur">
+          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-accent/12 text-accent">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="10.5" width="16" height="10" rx="2.2" />
+              <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+            </svg>
+          </div>
+          <h3 className="text-[16px] font-extrabold text-text">저평가·고평가 종목</h3>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
+            객관적 지표(PER·PBR·동종업계 비교)로 가려낸<br />
+            저평가·고평가 종목은 <b className="text-text">프로 전용</b>이에요.
+          </p>
+          <a
+            href="/pricing"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-white hover:opacity-90"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+            </svg>
+            프로로 업그레이드
+          </a>
+          <p className="mt-2.5 text-[11px] text-muted">월 4,900원 · 10,000 크레딧 충전</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeaserRow({
+  badge,
+  per,
+  chg,
+  up,
+}: {
+  badge: string;
+  per: string;
+  chg: string;
+  up: boolean;
+}) {
+  return (
+    <div className="flex w-full items-center gap-2 border-b border-border px-3 py-3">
+      <div className="grid h-8 w-8 shrink-0 place-items-center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 18l-6.2 3.3L7 14.2l-5-4.9 6.9-1z" />
+        </svg>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 h-4 w-24 rounded bg-bg-soft" />
+        <div className="text-[11px] text-muted">●●●● · {badge} · PER {per}</div>
+      </div>
+      <div className="text-right">
+        <div className="mb-1 ml-auto h-4 w-16 rounded bg-bg-soft" />
+        <div className="text-[12px] font-bold" style={{ color: up ? UP : DOWN }}>
+          {up ? "▲" : "▼"} {chg}
+        </div>
+      </div>
     </div>
   );
 }

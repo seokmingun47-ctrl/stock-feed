@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { geminiRace } from "@/lib/gemini";
 import { chargeAI } from "@/lib/credits";
 import { getValuationContext, type ValuationContext } from "@/lib/naver";
+import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const preferredRegion = "icn1";
@@ -90,6 +91,15 @@ export async function POST(req: NextRequest) {
   const mode: "under" | "over" = body.mode === "over" ? "over" : "under";
   if (!name || !symbol) {
     return NextResponse.json({ ok: false, reason: "종목 정보가 없어요." }, { status: 400 });
+  }
+
+  // 저평가·고평가 분석은 프로 전용
+  const user = await getUser(req);
+  if (!user?.isPro) {
+    return NextResponse.json(
+      { ok: false, reason: "저평가·고평가 분석은 프로 전용이에요.", code: "PRO_ONLY" },
+      { status: 403 },
+    );
   }
 
   const charge = await chargeAI(req);

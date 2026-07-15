@@ -14,6 +14,7 @@ export interface AuthUser {
   id: string;
   username: string;
   isAdmin: boolean;
+  isPro: boolean;
   avatarUrl?: string | null;
   profileColor?: string | null;
   bio?: string | null;
@@ -76,11 +77,11 @@ export async function getUser(req: NextRequest): Promise<AuthUser | null> {
   const db = getAdminClient();
   const res = await db
     .from("community_users")
-    .select("id, username, avatar_url, profile_color, bio")
+    .select("id, username, avatar_url, profile_color, bio, is_pro")
     .eq("id", userId)
     .single();
   let data = res.data as Record<string, unknown> | null;
-  // 프로필 컬럼 미설정(마이그레이션 전)이면 기본 컬럼만
+  // 프로필/is_pro 컬럼 미설정(마이그레이션 전)이면 기본 컬럼만
   if (!data) {
     const res2 = await db
       .from("community_users")
@@ -90,10 +91,12 @@ export async function getUser(req: NextRequest): Promise<AuthUser | null> {
     data = res2.data as Record<string, unknown> | null;
   }
   if (!data) return null;
+  const isAdmin = isAdminUsername(String(data.username));
   return {
     id: String(data.id),
     username: String(data.username),
-    isAdmin: isAdminUsername(String(data.username)),
+    isAdmin,
+    isPro: Boolean(data.is_pro) || isAdmin, // 관리자는 항상 프로
     avatarUrl: (data.avatar_url as string) ?? null,
     profileColor: (data.profile_color as string) ?? null,
     bio: (data.bio as string) ?? null,

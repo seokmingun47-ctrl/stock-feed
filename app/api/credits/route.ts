@@ -12,8 +12,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, credits: null });
   }
   const user = await getUser(req);
-  if (!user) return NextResponse.json({ ok: true, credits: null });
+  if (!user) return NextResponse.json({ ok: true, credits: null, isPro: false });
   const db = getAdminClient();
   const c = await getCredits(db, user.id);
-  return NextResponse.json({ ok: true, credits: Number.isNaN(c) ? null : c });
+  return NextResponse.json({
+    ok: true,
+    credits: Number.isNaN(c) ? null : c,
+    isPro: user.isPro,
+  });
 }

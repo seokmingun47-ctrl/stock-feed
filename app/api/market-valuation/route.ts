@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStockDetail, getQuote } from "@/lib/naver";
 import { KR_STOCKS, US_STOCKS } from "@/lib/market";
+import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const preferredRegion = "icn1";
 export const maxDuration = 30;
 
-// 저평가/고평가 — 큐레이션 종목의 PER/PBR 조회 후 정렬
+// 저평가/고평가 — 프로 전용. 큐레이션 종목의 PER/PBR 조회 후 정렬
 export async function GET(req: NextRequest) {
+  // 프로 구독자만 실제 종목 데이터를 볼 수 있음 (Investing 스타일 모자이크)
+  const user = await getUser(req);
+  if (!user?.isPro) {
+    return NextResponse.json(
+      { ok: false, code: "PRO_ONLY", message: "저평가·고평가 분석은 프로 전용입니다." },
+      { status: 403 },
+    );
+  }
   const region = req.nextUrl.searchParams.get("region") === "us" ? "us" : "kr";
   const list = region === "us" ? US_STOCKS : KR_STOCKS;
 

@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
       id: data.id,
       username: data.username,
       isAdmin: isAdminUsername(String(data.username)),
+      isPro: isAdminUsername(String(data.username)), // 신규 가입은 기본 비프로
     },
   });
   res.cookies.set(SESSION_COOKIE, token, {

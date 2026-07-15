@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   // 프로필(사진/색상/소개)까지 함께 조회 → 로그인 직후에도 프로필 유지
   const full = await db
     .from("community_users")
-    .select("id, username, password_hash, avatar_url, profile_color, bio")
+    .select("id, username, password_hash, avatar_url, profile_color, bio, is_pro")
     .ilike(col, id)
     .maybeSingle();
   if (full.error) {
@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       id: user.id,
       username: user.username,
       isAdmin: isAdminUsername(String(user.username)),
+      isPro: Boolean(user.is_pro) || isAdminUsername(String(user.username)),
       avatarUrl: (user.avatar_url as string) ?? null,
       profileColor: (user.profile_color as string) ?? null,
       bio: (user.bio as string) ?? null,

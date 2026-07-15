@@ -2,6 +2,7 @@ export interface User {
   id: string;
   username: string;
   isAdmin: boolean;
+  isPro?: boolean;
   avatarUrl?: string | null;
   profileColor?: string | null;
   bio?: string | null;
