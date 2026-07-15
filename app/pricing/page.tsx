@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { LogoMark } from "@/components/Logo";
 
@@ -60,8 +59,6 @@ const PLANS: Plan[] = [
 ];
 
 export default function PricingPage() {
-  const [notice, setNotice] = useState(false);
-
   return (
     <main className="min-h-screen bg-bg text-text">
       {/* 상단 바 */}
@@ -170,50 +167,29 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            <button
-              onClick={() => !p.free && setNotice(true)}
-              disabled={p.free}
-              className={`mt-6 w-full rounded-xl py-3 text-[15px] font-bold transition-colors ${
-                p.free
-                  ? "cursor-default border border-border text-muted"
-                  : "bg-accent text-white hover:opacity-90"
-              }`}
-            >
-              {p.cta}
-            </button>
+            {p.free ? (
+              <button
+                disabled
+                className="mt-6 w-full cursor-default rounded-xl border border-border py-3 text-[15px] font-bold text-muted"
+              >
+                {p.cta}
+              </button>
+            ) : (
+              <Link
+                href="/checkout"
+                className="mt-6 block w-full rounded-xl bg-accent py-3 text-center text-[15px] font-bold text-white transition-opacity hover:opacity-90"
+              >
+                {p.cta}
+              </Link>
+            )}
           </div>
         ))}
       </div>
 
       {/* 결제 안내 */}
       <p className="mx-auto max-w-md px-5 pb-16 text-center text-[12px] leading-relaxed text-muted">
-        언제든 해지할 수 있어요. 결제·구독은 앱 정식 출시(스토어 등록) 후 제공됩니다.
+        언제든 해지할 수 있어요. 카드결제는 토스페이먼츠로 안전하게 처리됩니다.
       </p>
-
-      {/* 준비중 안내 */}
-      {notice && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
-          onClick={() => setNotice(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-[17px] font-bold">곧 만나요</div>
-            <p className="mt-2 text-[14px] leading-relaxed text-muted">
-              프로 구독 결제는 앱 정식 출시 후 제공될 예정이에요. 그때까지는 무료
-              크레딧으로 이용할 수 있어요.
-            </p>
-            <button
-              onClick={() => setNotice(false)}
-              className="mt-4 w-full rounded-xl bg-accent py-2.5 text-[14px] font-bold text-white"
-            >
-              확인
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
