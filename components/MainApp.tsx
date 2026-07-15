@@ -120,6 +120,15 @@ export default function MainApp({
               <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 17 0z" />
             </svg>
           </NavItem>
+          <a
+            href="/pricing"
+            className="flex flex-1 flex-col items-center gap-1 py-2.5 pb-3 text-[11px] font-semibold text-accent"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+            </svg>
+            <span>요금제</span>
+          </a>
         </div>
       </nav>
     </div>
