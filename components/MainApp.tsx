@@ -125,7 +125,8 @@ export default function MainApp({
             className="flex flex-1 flex-col items-center gap-1 py-2.5 pb-3 text-[11px] font-semibold text-accent"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 7l4 4 5-7 5 7 4-4-2 12H5z" />
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
             </svg>
             <span>요금제</span>
           </a>
