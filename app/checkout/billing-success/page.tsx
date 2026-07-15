@@ -6,28 +6,27 @@ import { LogoMark } from "@/components/Logo";
 
 type Status = "loading" | "ok" | "fail";
 
-export default function CheckoutSuccessPage() {
+export default function BillingSuccessPage() {
   const [status, setStatus] = useState<Status>("loading");
   const [msg, setMsg] = useState("");
   const [credits, setCredits] = useState<number | null>(null);
   const ran = useRef(false);
 
   useEffect(() => {
-    if (ran.current) return; // StrictMode 이중호출 방지
+    if (ran.current) return;
     ran.current = true;
     const p = new URLSearchParams(window.location.search);
-    const paymentKey = p.get("paymentKey");
-    const orderId = p.get("orderId");
-    const amount = p.get("amount");
-    if (!paymentKey || !orderId || !amount) {
+    const authKey = p.get("authKey");
+    const customerKey = p.get("customerKey");
+    if (!authKey || !customerKey) {
       setStatus("fail");
-      setMsg("결제 정보가 없어요.");
+      setMsg("카드 인증 정보가 없어요.");
       return;
     }
-    fetch("/api/payments/confirm", {
+    fetch("/api/billing/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentKey, orderId, amount: Number(amount) }),
+      body: JSON.stringify({ authKey, customerKey }),
     })
       .then((r) => r.json())
       .then((d) => {
@@ -36,12 +35,12 @@ export default function CheckoutSuccessPage() {
           setCredits(d.addedCredits ?? null);
         } else {
           setStatus("fail");
-          setMsg(d.reason || "결제 승인에 실패했어요.");
+          setMsg(d.reason || "결제 등록에 실패했어요.");
         }
       })
       .catch(() => {
         setStatus("fail");
-        setMsg("결제 승인 중 오류가 생겼어요.");
+        setMsg("결제 처리 중 오류가 생겼어요.");
       });
   }, []);
 
@@ -57,7 +56,7 @@ export default function CheckoutSuccessPage() {
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.4" strokeLinecap="round" className="spin mx-auto">
               <path d="M21 12a9 9 0 1 1-2.64-6.36" />
             </svg>
-            <p className="mt-4 text-[15px] font-bold">결제를 승인하는 중이에요…</p>
+            <p className="mt-4 text-[15px] font-bold">카드를 등록하고 결제하는 중…</p>
             <p className="mt-1 text-[13px] text-muted">잠시만 기다려 주세요.</p>
           </>
         )}
@@ -69,9 +68,9 @@ export default function CheckoutSuccessPage() {
                 <path d="M20 6 9 17l-5-5" />
               </svg>
             </div>
-            <h1 className="mt-5 text-[22px] font-extrabold">프로 결제 완료 🎉</h1>
+            <h1 className="mt-5 text-[22px] font-extrabold">프로 구독 시작! 🎉</h1>
             <p className="mt-2 text-[14px] leading-relaxed text-muted">
-              이제 저평가·고평가 종목 분석까지 모두 열렸어요.
+              저평가·고평가 종목까지 모두 열렸어요. 매월 자동으로 갱신돼요.
               {credits != null && (
                 <>
                   <br />
@@ -79,10 +78,7 @@ export default function CheckoutSuccessPage() {
                 </>
               )}
             </p>
-            <Link
-              href="/"
-              className="mt-6 inline-block w-full rounded-xl bg-accent py-3.5 text-[15px] font-extrabold text-white hover:opacity-90"
-            >
+            <Link href="/" className="mt-6 inline-block w-full rounded-xl bg-accent py-3.5 text-[15px] font-extrabold text-white hover:opacity-90">
               앱으로 돌아가기
             </Link>
           </>
@@ -95,12 +91,9 @@ export default function CheckoutSuccessPage() {
                 <path d="M18 6 6 18M6 6l12 12" />
               </svg>
             </div>
-            <h1 className="mt-5 text-[20px] font-extrabold">결제를 완료하지 못했어요</h1>
+            <h1 className="mt-5 text-[20px] font-extrabold">구독을 시작하지 못했어요</h1>
             <p className="mt-2 text-[13.5px] leading-relaxed text-muted">{msg}</p>
-            <Link
-              href="/checkout"
-              className="mt-6 inline-block w-full rounded-xl bg-accent py-3.5 text-[15px] font-extrabold text-white hover:opacity-90"
-            >
+            <Link href="/checkout" className="mt-6 inline-block w-full rounded-xl bg-accent py-3.5 text-[15px] font-extrabold text-white hover:opacity-90">
               다시 시도하기
             </Link>
             <Link href="/" className="mt-3 inline-block text-[13px] text-muted underline">
