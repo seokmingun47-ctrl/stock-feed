@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "@/lib/community";
 import StockDetail, { type QuotedStock } from "./StockDetail";
+import CreditCoin from "./CreditCoin";
 
 const UP = "#f6465d";
 const DOWN = "#4b91f7";
@@ -228,9 +229,7 @@ export default function Market({
               href="/pricing"
               className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent hover:bg-card"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
-              </svg>
+              <CreditCoin size={14} />
               {credits.toLocaleString()}
             </a>
           )}
@@ -515,9 +514,7 @@ function ProLockedValue() {
             href="/pricing"
             className="mt-4 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-white hover:opacity-90"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
-            </svg>
+            <CreditCoin size={16} hole="var(--accent)" />
             프로로 업그레이드
           </a>
           <p className="mt-2.5 text-[11px] text-muted">월 4,900원 · 10,000 크레딧 충전</p>

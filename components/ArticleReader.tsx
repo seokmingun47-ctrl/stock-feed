@@ -104,9 +104,13 @@ export default function ArticleReader({
   const [chartStock, setChartStock] = useState<StockPick | null>(null);
   const listEnd = useRef<HTMLDivElement>(null);
 
-  const translated = translate && source.region === "global";
   const isSocial = source.id === "truthsocial";
   const isAggregator = !!source.hidden; // 구글뉴스 등 집계 — 실제 URL 해석 후 추출 시도
+  // 한/A 토글: 해외(영문 원문 ↔ 한국어)에만 노출. 국내·소셜·집계는 없음.
+  const showLangToggle = source.region === "global" && !isSocial && !isAggregator;
+  const [showKo, setShowKo] = useState(translate); // 리더별 번역 상태 (기본=피드 설정)
+  const wantKo = isAggregator || (showLangToggle && showKo); // 본문을 한국어로 가져올지
+  const translated = wantKo && source.region === "global" && !isAggregator;
 
   // 안전장치: 집계(구글뉴스) 헤드라인이 영어면 즉시 한국어로 번역
   useEffect(() => {
@@ -131,14 +135,15 @@ export default function ArticleReader({
       return;
     }
     const c = new AbortController();
-    // 집계는 항상 한국어
-    const lang = translated || isAggregator ? "&lang=ko" : "";
+    setData(null); // 언어 전환 시 로딩 표시
+    // 집계는 항상 한국어, 그 외엔 한/A 토글에 따라
+    const lang = wantKo ? "&lang=ko" : "";
     fetch(`/api/article?url=${encodeURIComponent(article.link)}${lang}`, { signal: c.signal })
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => setData({ ok: false, reason: "error" }));
     return () => c.abort();
-  }, [article.link, translated, isSocial, isAggregator]);
+  }, [article.link, wantKo, isSocial, isAggregator]);
 
   // 좋아요/댓글 상태
   useEffect(() => {
@@ -278,6 +283,18 @@ export default function ArticleReader({
             <span className="truncate text-[14px] font-semibold text-text">{source.name}</span>
             <span className="shrink-0 text-[12px] text-muted">· {timeAgo(article.publishedAt)}</span>
           </div>
+          {showLangToggle && (
+            <button
+              onClick={() => setShowKo((v) => !v)}
+              aria-label="한국어 번역 전환"
+              title={showKo ? "한국어로 보는 중 · 탭하면 원문(영어)" : "원문(영어)으로 보는 중 · 탭하면 한국어"}
+              className="flex shrink-0 items-center gap-1 rounded-full bg-bg-soft px-2.5 py-1.5 text-[12.5px] font-black"
+            >
+              <span className={showKo ? "text-accent" : "text-muted"}>한</span>
+              <span className="text-[11px] text-muted/50">/</span>
+              <span className={!showKo ? "text-accent" : "text-muted"}>A</span>
+            </button>
+          )}
           <a href={article.link} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-full bg-bg-soft px-3 py-1.5 text-[12px] font-semibold text-muted hover:text-text">
             원문 ↗
           </a>

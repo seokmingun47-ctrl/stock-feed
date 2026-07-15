@@ -14,6 +14,7 @@ import InterestSheet from "@/components/InterestSheet";
 import NotificationPanel from "@/components/NotificationPanel";
 import LikedNews from "@/components/LikedNews";
 import HScroll from "@/components/HScroll";
+import CreditCoin from "@/components/CreditCoin";
 import AiChat from "@/components/AiChat";
 import { AI_MAP, type AiApp } from "@/lib/ai";
 import { getStoredTheme, applyTheme, type Theme } from "@/lib/theme";
@@ -28,8 +29,6 @@ import {
   matchesInterests,
 } from "@/lib/interests";
 import { loadSeen, saveSeen } from "@/lib/notifications";
-
-const TR_KEY = "stockfeed:translate";
 
 // 토픽 빠른 필터 — 라벨 + 매칭어(한/영 변형 모두). 제목·요약에 하나라도 들어가면 매칭.
 const TOPICS: { label: string; terms: string[] }[] = [
@@ -77,7 +76,7 @@ export default function Feed({
   const [topic, setTopic] = useState<string | null>(null);
   const [breaking, setBreaking] = useState<Article[] | null>(null);
   const topicRef = useRef<string | null>(null);
-  const [translate, setTranslate] = useState(initialTranslate);
+  const [translate] = useState(initialTranslate); // 피드 목록 번역 기본값 (리더에서 개별 전환)
   const [reader, setReader] = useState<Article | null>(null);
   const [interests, setInterests] = useState<Interest[]>([]);
   const [interestSheet, setInterestSheet] = useState(false);
@@ -297,17 +296,6 @@ export default function Feed({
     return () => clearInterval(t);
   }, [followed, fetchFeed, loadBreaking, loadInterestGnews]);
 
-  const toggleTranslate = () => {
-    const v = !translate;
-    setTranslate(v);
-    trRef.current = v;
-    try {
-      localStorage.setItem(TR_KEY, v ? "1" : "0");
-    } catch {
-      /* noop */
-    }
-    fetchFeed(followed);
-  };
 
   const followedSources = useMemo(
     () => followed.map((id) => SOURCE_MAP[id]).filter(Boolean),
@@ -480,19 +468,6 @@ export default function Feed({
               <SearchIcon />
             </button>
             <button
-              onClick={toggleTranslate}
-              aria-label="해외 뉴스 한국어 번역"
-              title={translate ? "번역 켜짐 (해외 뉴스 한국어)" : "번역 꺼짐 (원문)"}
-              className={`flex h-8 items-center gap-1 rounded-full px-2.5 text-[13px] font-bold transition-colors ${
-                translate
-                  ? "bg-accent text-white"
-                  : "bg-bg-soft text-muted"
-              }`}
-            >
-              <span>한</span>
-              <span className="text-[10px] opacity-80">A문</span>
-            </button>
-            <button
               onClick={() => {
                 fetchFeed(followed);
                 if (topic) loadBreaking();
@@ -512,9 +487,7 @@ export default function Feed({
                 title="AI 크레딧 · 요금제"
                 className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent hover:bg-card"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
-                </svg>
+                <CreditCoin size={14} />
                 {credits.toLocaleString()}
               </a>
             )}

@@ -6,6 +6,7 @@ import { AI_APPS } from "@/lib/ai";
 import type { Source } from "@/lib/types";
 import type { Theme } from "@/lib/theme";
 import SourceAvatar from "./SourceAvatar";
+import CreditCoin from "./CreditCoin";
 
 function Row({
   source,
@@ -157,9 +158,7 @@ export default function ManageSheet({
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-full bg-accent/15 text-accent">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
-                </svg>
+                <CreditCoin size={19} />
               </span>
               <div>
                 <div className="text-[15px] font-bold text-text">
