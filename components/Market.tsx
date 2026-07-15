@@ -59,6 +59,10 @@ export default function Market({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<QuotedStock[] | null>(null);
 
+  const [movers, setMovers] = useState<{
+    gainers: QuotedStock[];
+    losers: QuotedStock[];
+  } | null>(null);
   const [watch, setWatch] = useState<WatchItem[]>([]);
   const [watchStocks, setWatchStocks] = useState<QuotedStock[] | null>(null);
   const [valuation, setValuation] = useState<{
@@ -114,12 +118,28 @@ export default function Market({
     }
   }, []);
   useEffect(() => {
-    if (view !== "quote" && view !== "movers") return;
+    if (view !== "quote") return;
     setStocks(null);
     load(region);
     const t = setInterval(() => load(region), 30000);
     return () => clearInterval(t);
   }, [region, view, load]);
+
+  // 급등/급락 (실제 순위)
+  useEffect(() => {
+    if (view !== "movers") return;
+    setMovers(null);
+    const go = () =>
+      fetch(`/api/market-movers?region=${region}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) =>
+          setMovers(d.ok ? { gainers: d.gainers, losers: d.losers } : { gainers: [], losers: [] }),
+        )
+        .catch(() => setMovers({ gainers: [], losers: [] }));
+    go();
+    const t = setInterval(go, 30000);
+    return () => clearInterval(t);
+  }, [region, view]);
 
   // 저평가/고평가
   useEffect(() => {
@@ -183,14 +203,6 @@ export default function Market({
   }, [query]);
 
   const showRegion = !searching && view !== "watch";
-  const gainers = (stocks ?? [])
-    .filter((s) => (s.changeRate ?? 0) > 0)
-    .sort((a, b) => (b.changeRate ?? 0) - (a.changeRate ?? 0))
-    .slice(0, 12);
-  const losers = (stocks ?? [])
-    .filter((s) => (s.changeRate ?? 0) < 0)
-    .sort((a, b) => (a.changeRate ?? 0) - (b.changeRate ?? 0))
-    .slice(0, 12);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[600px] flex-col bg-bg pb-20">
@@ -305,18 +317,26 @@ export default function Market({
             ))
           )
         ) : view === "movers" ? (
-          stocks === null ? (
+          movers === null ? (
             <SkeletonRows />
           ) : (
             <>
-              <SectionHeader>📈 급등</SectionHeader>
-              {gainers.map((s) => (
-                <Row key={s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => setOpen(s)} />
-              ))}
-              <SectionHeader>📉 급락</SectionHeader>
-              {losers.map((s) => (
-                <Row key={s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => setOpen(s)} />
-              ))}
+              <SectionHeader>📈 급등 TOP</SectionHeader>
+              {movers.gainers.length === 0 ? (
+                <p className="px-4 py-4 text-center text-[13px] text-muted">상승 종목이 없어요.</p>
+              ) : (
+                movers.gainers.map((s) => (
+                  <Row key={"u" + s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => setOpen(s)} />
+                ))
+              )}
+              <SectionHeader>📉 급락 TOP</SectionHeader>
+              {movers.losers.length === 0 ? (
+                <p className="px-4 py-4 text-center text-[13px] text-muted">하락 종목이 없어요.</p>
+              ) : (
+                movers.losers.map((s) => (
+                  <Row key={"d" + s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => setOpen(s)} />
+                ))
+              )}
             </>
           )
         ) : view === "value" ? (

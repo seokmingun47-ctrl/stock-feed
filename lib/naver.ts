@@ -132,6 +132,54 @@ export async function getStockDetail(
   return { info, per: toNum(info["PER"]), pbr: toNum(info["PBR"]), changeRate: rate };
 }
 
+// 국내 급등/급락 순위 (네이버 실제 상승률/하락률 랭킹, KOSPI+KOSDAQ 합산)
+export interface MoverStock {
+  name: string;
+  ticker: string;
+  symbol: string;
+  market: string;
+  domestic: boolean;
+  price: string | null;
+  changeRate: number | null;
+  currency: string;
+}
+export async function getDomesticMovers(
+  dir: "up" | "down",
+  size = 15,
+): Promise<MoverStock[]> {
+  const url = (mk: string) =>
+    `https://m.stock.naver.com/api/stocks/${dir}/${mk}?page=1&pageSize=${size + 10}`;
+  const [a, b] = await Promise.all([jget(url("KOSPI")), jget(url("KOSDAQ"))]);
+  const parse = (j: unknown): MoverStock[] => {
+    const arr = Array.isArray(j)
+      ? j
+      : ((j as { stocks?: unknown[] } | null)?.stocks ?? []);
+    return (arr as Record<string, unknown>[]).map((x) => ({
+      name: String(x.stockName ?? ""),
+      ticker: String(x.itemCode ?? ""),
+      symbol: String(x.reutersCode ?? x.itemCode ?? ""),
+      market: String(
+        x.stockExchangeType ?? (String(x.sosok) === "1" ? "KOSDAQ" : "KOSPI"),
+      ),
+      domestic: true,
+      price: String(x.closePrice ?? "") || null,
+      changeRate: Number(x.fluctuationsRatio) || 0,
+      currency: "KRW",
+    }));
+  };
+  // ETN/ETF/레버리지 등 파생상품 제외 → 실제 종목 위주
+  const skip = /ETN|ETF|레버리지|인버스|선물|2X|커버드콜|TIGER|KODEX|ACE|PLUS/i;
+  const all = [...parse(a), ...parse(b)].filter(
+    (s) => s.name && !skip.test(s.name),
+  );
+  all.sort((x, y) =>
+    dir === "up"
+      ? (y.changeRate ?? 0) - (x.changeRate ?? 0)
+      : (x.changeRate ?? 0) - (y.changeRate ?? 0),
+  );
+  return all.slice(0, size);
+}
+
 export interface Quote {
   price: string; // 표시용 (국내 "296,000", 해외 "193.13")
   changeRate: number; // 등락률 (%)
