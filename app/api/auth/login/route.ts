@@ -34,12 +34,22 @@ export async function POST(req: NextRequest) {
     .ilike(col, id)
     .maybeSingle();
   if (full.error) {
-    const basic = await db
+    // is_pro 컬럼 미설정(마이그레이션 전) → 프로필 컬럼까지는 유지
+    const mid = await db
       .from("community_users")
-      .select("id, username, password_hash")
-      .ilike("username", id)
+      .select("id, username, password_hash, avatar_url, profile_color, bio")
+      .ilike(col, id)
       .maybeSingle();
-    user = basic.data as Record<string, unknown> | null;
+    if (mid.error) {
+      const basic = await db
+        .from("community_users")
+        .select("id, username, password_hash")
+        .ilike("username", id)
+        .maybeSingle();
+      user = basic.data as Record<string, unknown> | null;
+    } else {
+      user = mid.data as Record<string, unknown> | null;
+    }
   } else {
     user = full.data as Record<string, unknown> | null;
   }

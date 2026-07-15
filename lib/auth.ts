@@ -81,14 +81,23 @@ export async function getUser(req: NextRequest): Promise<AuthUser | null> {
     .eq("id", userId)
     .single();
   let data = res.data as Record<string, unknown> | null;
-  // 프로필/is_pro 컬럼 미설정(마이그레이션 전)이면 기본 컬럼만
+  // is_pro 컬럼 미설정(마이그레이션 전)이면 프로필 컬럼까지만 (프로필 유지)
   if (!data) {
     const res2 = await db
+      .from("community_users")
+      .select("id, username, avatar_url, profile_color, bio")
+      .eq("id", userId)
+      .single();
+    data = res2.data as Record<string, unknown> | null;
+  }
+  // 그마저 실패하면(프로필 컬럼도 없음) 최소 컬럼
+  if (!data) {
+    const res3 = await db
       .from("community_users")
       .select("id, username")
       .eq("id", userId)
       .single();
-    data = res2.data as Record<string, unknown> | null;
+    data = res3.data as Record<string, unknown> | null;
   }
   if (!data) return null;
   const isAdmin = isAdminUsername(String(data.username));
