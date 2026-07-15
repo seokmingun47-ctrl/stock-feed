@@ -12,6 +12,7 @@ interface Plan {
   per: string;
   uses: string;
   recommend: boolean;
+  highlight?: { title: string; desc: string };
   features: string[];
   cta: string;
   free?: boolean;
@@ -28,8 +29,8 @@ const PLANS: Plan[] = [
     recommend: false,
     free: true,
     features: [
-      "국내외 뉴스 · 한국어 번역",
-      "시장 시세 · 차트 · 종목 검색",
+      "국내외 뉴스 · 기사별 원문↔한국어 전환",
+      "시장 시세 · 차트 · 급등락 · 종목 검색",
       "커뮤니티 · 그룹방",
       "AI 요약 · 종목분석 · 시장분석 (1회 25크레딧)",
     ],
@@ -43,9 +44,14 @@ const PLANS: Plan[] = [
     per: "매월 자동 충전",
     uses: "AI 약 400회",
     recommend: true,
+    highlight: {
+      title: "저평가 · 고평가 종목 분석",
+      desc: "PER·PBR·동종업계 비교로 가려낸 밸류 종목과 그 이유까지 (프로 전용)",
+    },
     features: [
       "무료 플랜의 모든 기능",
-      "10,000 크레딧 충전",
+      "저평가·고평가 종목 잠금 해제",
+      "10,000 크레딧 매월 자동 충전",
       "AI 요약 · 종목분석 · 시장분석 넉넉하게",
       "우선 응답",
     ],
@@ -123,6 +129,25 @@ export default function PricingPage() {
               <span className="text-[12px] text-muted">{p.uses}</span>
             </div>
             <div className="mt-1 text-[11.5px] text-muted">{p.per}</div>
+
+            {p.highlight && (
+              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-accent/35 bg-accent/[0.08] px-3 py-3">
+                <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/15 text-accent">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="10.5" width="16" height="10" rx="2.2" />
+                    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+                  </svg>
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13.5px] font-extrabold text-accent">
+                    {p.highlight.title}
+                  </div>
+                  <div className="mt-0.5 text-[11.5px] leading-snug text-muted">
+                    {p.highlight.desc}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <ul className="mt-4 flex-1 space-y-2.5">
               {p.features.map((f) => (
