@@ -35,7 +35,7 @@ function loadToss(): Promise<(key: string) => TossInstance> {
 
 const PRO_FEATURES = [
   "저평가·고평가 종목 잠금 해제",
-  "매월 10,000 크레딧 자동 충전 (AI 약 400회)",
+  "10,000 크레딧 자동 충전 (AI 약 400회)",
   "AI 요약 · 종목분석 · 시장분석 넉넉하게",
   "우선 응답",
 ];
