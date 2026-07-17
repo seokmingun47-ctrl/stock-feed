@@ -220,7 +220,10 @@ export default function Feed({
     [user.username],
   );
 
-  const fetchFeed = useCallback(async (ids: string[]) => {
+  // fresh=true (사용자가 새로고침 버튼을 누른 경우) → CDN 캐시까지 우회.
+  // cache:"no-store"는 브라우저 캐시만 막고 Vercel 엣지 캐시는 못 막아서,
+  // 그냥 두면 최대 5분(stale-while-revalidate) 묵은 응답이 그대로 온다.
+  const fetchFeed = useCallback(async (ids: string[], fresh = false) => {
     if (!ids.length) {
       setArticles([]);
       setOkSources([]);
@@ -231,7 +234,8 @@ export default function Feed({
     setError(false);
     try {
       const lang = trRef.current ? "&lang=ko" : "";
-      const res = await fetch(`/api/feed?sources=${ids.join(",")}${lang}`, {
+      const bust = fresh ? `&t=${Date.now()}` : "";
+      const res = await fetch(`/api/feed?sources=${ids.join(",")}${lang}${bust}`, {
         cache: "no-store",
       });
       if (!res.ok) throw new Error("bad");
@@ -474,7 +478,7 @@ export default function Feed({
             </button>
             <button
               onClick={() => {
-                fetchFeed(followed);
+                fetchFeed(followed, true); // 수동 새로고침 → 캐시 우회
                 if (topic) loadBreaking();
                 if (active === "interests") {
                   loadBreaking();
