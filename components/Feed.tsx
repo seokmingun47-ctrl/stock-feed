@@ -15,6 +15,7 @@ import NotificationPanel from "@/components/NotificationPanel";
 import LikedNews from "@/components/LikedNews";
 import HScroll from "@/components/HScroll";
 import CreditCoin from "@/components/CreditCoin";
+import EconCalendar from "@/components/EconCalendar";
 import AiChat from "@/components/AiChat";
 import { AI_MAP, type AiApp } from "@/lib/ai";
 import { getStoredTheme, applyTheme, type Theme } from "@/lib/theme";
@@ -86,6 +87,7 @@ export default function Feed({
   const [reader, setReader] = useState<Article | null>(null);
   const [interests, setInterests] = useState<Interest[]>([]);
   const [interestSheet, setInterestSheet] = useState(false);
+  const [calOpen, setCalOpen] = useState(false); // 경제 캘린더
   const [interestGnews, setInterestGnews] = useState<Article[] | null>(null);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [notifOpen, setNotifOpen] = useState(false);
@@ -579,6 +581,18 @@ export default function Feed({
               )}
             </span>
           </Chip>
+          <Chip
+            active={calOpen}
+            onClick={() => setCalOpen(true)}
+            label="캘린더"
+          >
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#5b54f0] to-[#18b6e6] text-white">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
+                <path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
+              </svg>
+            </span>
+          </Chip>
 
           {/* 팔로우한 AI 앱 */}
           {aiFollowed
@@ -911,6 +925,8 @@ export default function Feed({
           onClose={closeNotif}
         />
       )}
+
+      {calOpen && <EconCalendar onClose={() => setCalOpen(false)} />}
 
       {reader && SOURCE_MAP[reader.sourceId] && (
         <ArticleReader
