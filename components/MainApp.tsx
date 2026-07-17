@@ -12,12 +12,16 @@ type Tab = "news" | "market" | "group" | "board";
 
 export default function MainApp({
   user,
+  isGuest = false,
+  onRequireLogin,
   initialFollowed,
   initialTranslate,
   onLogout,
   onUserUpdated,
 }: {
   user: User;
+  isGuest?: boolean;
+  onRequireLogin: () => void;
   initialFollowed: string[];
   initialTranslate: boolean;
   onLogout: () => void;
@@ -45,6 +49,15 @@ export default function MainApp({
     refreshCredits();
   }, [refreshCredits, tab]);
 
+  // 뉴스 외 탭은 로그인 필요 — 게스트가 누르면 로그인 창
+  const go = (t: Tab) => {
+    if (isGuest && t !== "news") {
+      onRequireLogin();
+      return;
+    }
+    setTab(t);
+  };
+
   // 내가 팔로우한 유저(뉴스 채널) 목록 — 뉴스탭 상단 칩
   const reloadAuthors = useCallback(() => {
     fetch("/api/follows", { cache: "no-store" })
@@ -65,6 +78,8 @@ export default function MainApp({
       <div className={tab === "news" ? "" : "hidden"}>
         <Feed
           user={user}
+          isGuest={isGuest}
+          onRequireLogin={onRequireLogin}
           initialFollowed={initialFollowed}
           initialTranslate={initialTranslate}
           authors={authors}
@@ -111,7 +126,7 @@ export default function MainApp({
         <div className="mx-auto flex max-w-[600px]">
           <NavItem
             active={tab === "news"}
-            onClick={() => setTab("news")}
+            onClick={() => go("news")}
             label="뉴스"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -121,7 +136,7 @@ export default function MainApp({
           </NavItem>
           <NavItem
             active={tab === "market"}
-            onClick={() => setTab("market")}
+            onClick={() => go("market")}
             label="시장"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -131,7 +146,7 @@ export default function MainApp({
           </NavItem>
           <NavItem
             active={tab === "group"}
-            onClick={() => setTab("group")}
+            onClick={() => go("group")}
             label="그룹방"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -142,7 +157,7 @@ export default function MainApp({
           </NavItem>
           <NavItem
             active={tab === "board"}
-            onClick={() => setTab("board")}
+            onClick={() => go("board")}
             label="자유게시판"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

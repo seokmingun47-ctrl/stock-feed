@@ -78,12 +78,16 @@ export default function ArticleReader({
   source,
   translate,
   user,
+  isGuest = false,
+  onRequireLogin,
   onClose,
 }: {
   article: Article;
   source: Source;
   translate: boolean;
   user: User;
+  isGuest?: boolean;
+  onRequireLogin?: () => void;
   onClose: () => void;
 }) {
   const [data, setData] = useState<ReaderData | null>(null);
@@ -196,6 +200,7 @@ export default function ArticleReader({
   }, [article.link]);
 
   const summarize = async () => {
+    if (isGuest) return onRequireLogin?.(); // AI는 로그인 필요
     if (summarizing || !canSummarize) return;
     setSummarizing(true);
     setSummaryErr("");
@@ -208,6 +213,7 @@ export default function ArticleReader({
   };
 
   const analyze = async () => {
+    if (isGuest) return onRequireLogin?.(); // AI는 로그인 필요
     if (analyzing || !canSummarize) return;
     setAnalyzing(true);
     setStocksErr("");
@@ -242,6 +248,7 @@ export default function ArticleReader({
   };
 
   const send = async () => {
+    if (isGuest) return onRequireLogin?.();
     if (!text.trim() || busy) return;
     setBusy(true);
     try {
@@ -510,13 +517,25 @@ export default function ArticleReader({
 
           {/* 좋아요 / 댓글 요약 바 */}
           <div className="mt-5 flex items-center gap-5 border-y border-border px-5 py-3">
-            <LikeButton
-              targetType="news"
-              targetId={article.link}
-              meta={meta}
-              initialLiked={liked}
-              initialCount={likeCount}
-            />
+            {isGuest ? (
+              <button
+                onClick={onRequireLogin}
+                className="flex items-center gap-1 text-[13px] font-semibold text-muted hover:text-[#f6465d]"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+                </svg>
+                {likeCount}
+              </button>
+            ) : (
+              <LikeButton
+                targetType="news"
+                targetId={article.link}
+                meta={meta}
+                initialLiked={liked}
+                initialCount={likeCount}
+              />
+            )}
             <span className="flex items-center gap-1 text-[13px] font-semibold text-muted">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 17 0z" />
@@ -569,11 +588,13 @@ export default function ArticleReader({
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
+              onFocus={isGuest ? () => onRequireLogin?.() : undefined}
+              readOnly={isGuest}
               maxLength={2000}
-              placeholder="이 뉴스에 대한 의견을 남겨보세요…"
+              placeholder={isGuest ? "로그인하면 의견을 남길 수 있어요" : "이 뉴스에 대한 의견을 남겨보세요…"}
               className="min-w-0 flex-1 rounded-full border border-border bg-bg-soft px-4 py-2.5 text-[15px] text-text outline-none placeholder:text-muted focus:border-accent"
             />
-            <button onClick={send} disabled={!text.trim() || busy} className="shrink-0 rounded-full bg-accent px-4 py-2.5 text-[14px] font-bold text-white disabled:opacity-40">
+            <button onClick={send} disabled={!isGuest && (!text.trim() || busy)} className="shrink-0 rounded-full bg-accent px-4 py-2.5 text-[14px] font-bold text-white disabled:opacity-40">
               등록
             </button>
           </div>

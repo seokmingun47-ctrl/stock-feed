@@ -61,6 +61,8 @@ export default function ManageSheet({
   onThemeChange,
   credits = null,
   creditsUnlimited = false,
+  isGuest = false,
+  onRequireLogin,
   isAdmin = false,
   adminNew = 0,
   onOpenAdmin,
@@ -80,6 +82,8 @@ export default function ManageSheet({
   onThemeChange?: (t: Theme) => void;
   credits?: number | null;
   creditsUnlimited?: boolean;
+  isGuest?: boolean;
+  onRequireLogin?: () => void;
   isAdmin?: boolean;
   adminNew?: number;
   onOpenAdmin?: () => void;
@@ -225,7 +229,7 @@ export default function ManageSheet({
           </button>
         )}
 
-        {onEditProfile && (
+        {!isGuest && onEditProfile && (
           <button
             onClick={onEditProfile}
             className="flex w-full items-center gap-2 border-b border-border px-4 py-3.5 text-left hover:bg-bg-soft"
@@ -241,7 +245,7 @@ export default function ManageSheet({
           </button>
         )}
 
-        {onOpenHistory && (
+        {!isGuest && onOpenHistory && (
           <button
             onClick={onOpenHistory}
             className="flex w-full items-center gap-2 border-b border-border px-4 py-3.5 text-left hover:bg-bg-soft"
@@ -322,20 +326,35 @@ export default function ManageSheet({
           />
         ))}
 
-        {onLogout && (
+        {isGuest ? (
           <div className="mt-4 border-t border-border px-4 pt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[13px] text-muted">
-                {nickname ? `${nickname}님으로 이용 중` : "이용 중"}
-              </span>
-              <button
-                onClick={onLogout}
-                className="rounded-full border border-border px-4 py-1.5 text-[13px] font-semibold text-muted hover:text-text"
-              >
-                로그아웃
-              </button>
-            </div>
+            <p className="text-[13px] leading-relaxed text-muted">
+              지금은 <b className="text-text">둘러보기</b> 중이에요. 로그인하면 AI 분석·시장·그룹방·자유게시판을
+              쓸 수 있고, <b className="text-accent">크레딧 2,000</b>을 드려요.
+            </p>
+            <button
+              onClick={onRequireLogin}
+              className="mt-3 w-full rounded-xl bg-accent py-3 text-[14.5px] font-extrabold text-white hover:opacity-90"
+            >
+              로그인 / 회원가입
+            </button>
           </div>
+        ) : (
+          onLogout && (
+            <div className="mt-4 border-t border-border px-4 pt-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-muted">
+                  {nickname ? `${nickname}님으로 이용 중` : "이용 중"}
+                </span>
+                <button
+                  onClick={onLogout}
+                  className="rounded-full border border-border px-4 py-1.5 text-[13px] font-semibold text-muted hover:text-text"
+                >
+                  로그아웃
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         <div className="mt-4 flex items-center justify-center gap-3 px-4 pb-1 text-[12px] text-muted">

@@ -68,7 +68,15 @@ function Nums({ e }: { e: EconEvent }) {
   );
 }
 
-export default function EconCalendar({ onClose }: { onClose: () => void }) {
+export default function EconCalendar({
+  isGuest = false,
+  onRequireLogin,
+  onClose,
+}: {
+  isGuest?: boolean;
+  onRequireLogin?: () => void;
+  onClose: () => void;
+}) {
   const [events, setEvents] = useState<EconEvent[] | null>(null);
   const [source, setSource] = useState<"fmp" | "ff">("ff");
   const [cursor, setCursor] = useState(() => new Date());
@@ -270,18 +278,36 @@ export default function EconCalendar({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {open && <ExplainSheet event={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <ExplainSheet
+          event={open}
+          isGuest={isGuest}
+          onRequireLogin={onRequireLogin}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </div>
   );
 }
 
 // 일정 상세 + AI 설명
-function ExplainSheet({ event, onClose }: { event: EconEvent; onClose: () => void }) {
+function ExplainSheet({
+  event,
+  isGuest = false,
+  onRequireLogin,
+  onClose,
+}: {
+  event: EconEvent;
+  isGuest?: boolean;
+  onRequireLogin?: () => void;
+  onClose: () => void;
+}) {
   const [explain, setExplain] = useState<Explain | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   const run = async () => {
+    if (isGuest) return onRequireLogin?.(); // AI는 로그인 필요
     if (busy) return;
     setBusy(true);
     setErr("");

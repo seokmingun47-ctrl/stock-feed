@@ -48,6 +48,8 @@ const TOPICS: { label: string; terms: string[] }[] = [
 
 export default function Feed({
   user,
+  isGuest = false,
+  onRequireLogin,
   initialFollowed,
   initialTranslate,
   authors,
@@ -59,6 +61,8 @@ export default function Feed({
   onEditProfile,
 }: {
   user: User;
+  isGuest?: boolean;
+  onRequireLogin: () => void;
   initialFollowed: string[];
   initialTranslate: boolean;
   authors: Author[];
@@ -864,6 +868,8 @@ export default function Feed({
           onThemeChange={changeTheme}
           credits={credits}
           creditsUnlimited={creditsUnlimited}
+          isGuest={isGuest}
+          onRequireLogin={onRequireLogin}
           isAdmin={user.isAdmin}
           adminNew={adminNew}
           onOpenAdmin={openAdmin}
@@ -926,7 +932,13 @@ export default function Feed({
         />
       )}
 
-      {calOpen && <EconCalendar onClose={() => setCalOpen(false)} />}
+      {calOpen && (
+        <EconCalendar
+          isGuest={isGuest}
+          onRequireLogin={onRequireLogin}
+          onClose={() => setCalOpen(false)}
+        />
+      )}
 
       {reader && SOURCE_MAP[reader.sourceId] && (
         <ArticleReader
@@ -934,6 +946,8 @@ export default function Feed({
           source={SOURCE_MAP[reader.sourceId]}
           translate={translate}
           user={user}
+          isGuest={isGuest}
+          onRequireLogin={onRequireLogin}
           onClose={() => setReader(null)}
         />
       )}

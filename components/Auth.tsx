@@ -23,7 +23,13 @@ const PREVIEW: { id: string; text: string; trend?: "up" | "down" }[] = [
   { id: "businessinsider", text: "원/달러 환율 하락에 수출주 반등", trend: "down" },
 ];
 
-export default function Auth({ onAuth }: { onAuth: (u: User) => void }) {
+export default function Auth({
+  onAuth,
+  onClose,
+}: {
+  onAuth: (u: User) => void;
+  onClose?: () => void; // 게스트가 기능을 누를 때 오버레이로 뜨는 경우
+}) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -71,6 +77,18 @@ export default function Auth({ onAuth }: { onAuth: (u: User) => void }) {
     <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-br from-white via-[#fdf2f8] to-[#ece9fe]">
       <div className="pointer-events-none absolute -right-32 top-1/4 h-96 w-96 rounded-full bg-indigo-300/30 blur-3xl" />
       <div className="pointer-events-none absolute -left-24 bottom-0 h-80 w-80 rounded-full bg-pink-300/30 blur-3xl" />
+
+      {onClose && (
+        <button
+          onClick={onClose}
+          aria-label="닫기"
+          className="absolute right-4 top-4 z-20 grid h-10 w-10 place-items-center rounded-full bg-white/70 text-slate-600 shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-slate-900"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      )}
 
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col md:grid md:grid-cols-2">
         {/* 브랜딩 + 인증 폼 */}
