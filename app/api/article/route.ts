@@ -26,7 +26,6 @@ const ALLOWED = [
   // 우주 · AI반도체 전문
   "arstechnica.com",
   "spacenews.com",
-  "nasaspaceflight.com",
   "semianalysis.com",
   // 국내
   "hankyung.com",
@@ -143,6 +142,29 @@ function blockParas(htmlChunk: string): string[] {
   return dedupe(lines.filter((t) => t.length > 30));
 }
 
+// 사이트 슬로건·구독 유도·페이월 문구는 본문이 아님 (번역 전 원문 기준으로 거름)
+const BOILERPLATE = [
+  /^covering the business and politics of space$/i,
+  /enter the code sent to your email/i,
+  /we('|’)?ll send a verification code/i,
+  /register (now )?to (get|read)/i,
+  /free article[s]? (left|this month|remaining)/i,
+  /to get \d+ more free article/i,
+  /unlimited access to/i,
+  /cancel anytime/i,
+  /sales tax may apply/i,
+  /non-?refundable/i,
+  /terms of service apply/i,
+  /subscribe to (continue|read|keep reading)/i,
+  /already a (subscriber|member)\?/i,
+  /sign up for (our )?newsletter/i,
+  /this article is (for|available to) subscribers/i,
+];
+
+function isBoilerplate(p: string): boolean {
+  return BOILERPLATE.some((re) => re.test(p));
+}
+
 function extractParagraphs(html: string): string[] {
   // 1) JSON-LD articleBody 우선
   const ld = [...html.matchAll(
@@ -245,7 +267,7 @@ export async function GET(req: NextRequest) {
 
   const titleEn = meta(html, "og:title") || decode((html.match(/<title>([^<]*)<\/title>/i) || [, ""])[1]).trim();
   const image = meta(html, "og:image") || null;
-  let paras = extractParagraphs(html);
+  let paras = extractParagraphs(html).filter((p) => !isBoilerplate(p));
 
   // 본문 분량 제한 (번역 부하/길이)
   let acc = 0;

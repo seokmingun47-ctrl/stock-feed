@@ -288,16 +288,6 @@ export const SOURCES: Source[] = [
     color: "#0a2540",
   },
   {
-    id: "nasaspaceflight",
-    name: "NASASpaceflight",
-    handle: "@NASASpaceflight",
-    category: "Space",
-    region: "global",
-    url: "https://www.nasaspaceflight.com/feed/",
-    domain: "nasaspaceflight.com",
-    color: "#1b2a4a",
-  },
-  {
     id: "semianalysis",
     name: "SemiAnalysis",
     handle: "@SemiAnalysis_",
