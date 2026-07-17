@@ -28,34 +28,44 @@ async function krRows() {
     }));
 }
 
-// 해외: 네이버에 미국 시총 랭킹 API가 없어 큐레이션 목록 유지 (종목별 상세 조회)
+// 해외: 네이버에 미국 시총 랭킹 API가 없어 큐레이션 목록 사용 (심볼은 자동완성으로 검증됨).
+// 종목당 상세+시세 2요청이라, 한 번에 다 던지면 네이버가 막으므로 청크로 나눠 호출.
 async function usRows() {
-  const rows = await Promise.all(
-    US_STOCKS.map(async (s) => {
-      try {
-        const [detail, q] = await Promise.all([
-          getStockDetail(s.symbol, s.domestic),
-          getQuote({ symbol: s.symbol, domestic: s.domestic }),
-        ]);
-        return {
-          name: s.name,
-          ticker: s.ticker,
-          symbol: s.symbol,
-          market: s.market,
-          domestic: s.domestic,
-          per: detail?.per ?? null,
-          pbr: detail?.pbr ?? null,
-          roe: null as number | null,
-          price: q?.price ?? null,
-          changeRate: q?.changeRate ?? null,
-          currency: q?.currency ?? "USD",
-        };
-      } catch {
-        return null;
-      }
-    }),
+  const CHUNK = 12;
+  const rows: Array<Record<string, unknown> | null> = [];
+  for (let i = 0; i < US_STOCKS.length; i += CHUNK) {
+    const part = await Promise.all(
+      US_STOCKS.slice(i, i + CHUNK).map(async (s) => {
+        try {
+          const [detail, q] = await Promise.all([
+            getStockDetail(s.symbol, s.domestic),
+            getQuote({ symbol: s.symbol, domestic: s.domestic }),
+          ]);
+          return {
+            name: s.name,
+            ticker: s.ticker,
+            symbol: s.symbol,
+            market: s.market,
+            domestic: s.domestic,
+            per: detail?.per ?? null,
+            pbr: detail?.pbr ?? null,
+            roe: null as number | null,
+            price: q?.price ?? null,
+            changeRate: q?.changeRate ?? null,
+            currency: q?.currency ?? "USD",
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    rows.push(...part);
+  }
+  // PER 이상치 제외 (예: 적자 직전 기업이 PER 44,980배로 잡혀 고평가 1위를 먹는 노이즈)
+  return rows.filter(
+    (r): r is NonNullable<typeof r> & { per: number } =>
+      !!r && typeof r.per === "number" && r.per > 0 && r.per < 2000,
   );
-  return rows.filter((r): r is NonNullable<typeof r> => !!r && !!r.per && r.per > 0);
 }
 
 // 저평가/고평가 — 프로 전용
