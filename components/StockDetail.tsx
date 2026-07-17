@@ -99,7 +99,12 @@ export default function StockDetail({
   const [analyzing, setAnalyzing] = useState(false);
   const [aiErr, setAiErr] = useState("");
   const [reader, setReader] = useState<Article | null>(null);
-  const [valReason, setValReason] = useState<{ summary: string; points: string[] } | null>(null);
+  const [valReason, setValReason] = useState<{
+    summary: string;
+    points: string[];
+    tech?: string[];
+  } | null>(null);
+  const [valNews, setValNews] = useState<Article[]>([]); // 기술력 설명의 근거 기사
   const [valBusy, setValBusy] = useState(false);
   const [valErr, setValErr] = useState("");
   const [live, setLive] = useState<QuotedStock | null>(null);
@@ -160,6 +165,7 @@ export default function StockDetail({
         return;
       }
       setValReason(d.reason);
+      setValNews(d.news ?? []);
     } catch {
       setValErr("네트워크 오류예요. 다시 시도해 주세요.");
     } finally {
@@ -414,7 +420,14 @@ export default function StockDetail({
                     </button>
                   </div>
                 )}
-                {valReason && <ValuationReasonCard reason={valReason} mode={valuationMode} />}
+                {valReason && (
+                  <ValuationReasonCard
+                    reason={valReason}
+                    mode={valuationMode}
+                    news={valNews}
+                    onOpenNews={setReader}
+                  />
+                )}
               </>
             ) : (
               <>
@@ -492,12 +505,42 @@ export default function StockDetail({
 function ValuationReasonCard({
   reason,
   mode,
+  news,
+  onOpenNews,
 }: {
-  reason: { summary: string; points: string[] };
+  reason: { summary: string; points: string[]; tech?: string[] };
   mode: "under" | "over";
+  news?: Article[];
+  onOpenNews?: (a: Article) => void;
 }) {
   const color = mode === "under" ? "#14c38e" : "#f6465d";
   const title = mode === "under" ? "저평가 근거" : "고평가 근거";
+  const tech = reason.tech ?? [];
+
+  // "…[뉴스2]" → 해당 기사로 연결 (근거를 직접 눌러 확인 가능)
+  const renderTech = (t: string, i: number) => {
+    const m = t.match(/\[뉴스\s*(\d+)\]/);
+    const idx = m ? Number(m[1]) - 1 : -1;
+    const art = news && idx >= 0 ? news[idx] : undefined;
+    const text = t.replace(/\s*\[뉴스\s*\d+\]\s*$/, "");
+    return (
+      <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
+        <span className="text-accent">•</span>
+        <span>
+          {text}
+          {art && (
+            <button
+              onClick={() => onOpenNews?.(art)}
+              className="ml-1 whitespace-nowrap rounded bg-accent/15 px-1.5 py-px align-middle text-[10.5px] font-bold text-accent hover:bg-accent/25"
+            >
+              근거 기사 ↗
+            </button>
+          )}
+        </span>
+      </li>
+    );
+  };
+
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-bg-soft">
       <div className="border-b border-border p-4">
@@ -518,8 +561,26 @@ function ValuationReasonCard({
           ))}
         </ul>
       )}
+
+      {/* 기술력·사업 — 실제 뉴스에 나온 내용만 */}
+      {tech.length > 0 && (
+        <div className="border-t border-border">
+          <div className="px-4 pt-3.5 text-[12px] font-bold text-accent">
+            기술력 · 사업 (실제 뉴스 근거)
+          </div>
+          <ul className="space-y-2 p-4 pt-2">{tech.map(renderTech)}</ul>
+        </div>
+      )}
+      {tech.length === 0 && (
+        <p className="border-t border-border px-4 py-3 text-[12.5px] leading-relaxed text-muted">
+          최근 뉴스에서 이 기업의 기술·사업 관련 내용을 찾지 못해 기술력 설명은 생략했어요.
+          <b className="text-text"> 추측으로 채우지 않습니다.</b>
+        </p>
+      )}
+
       <p className="bg-bg px-4 py-2.5 text-[11px] leading-relaxed text-muted">
-        ※ PER·PBR·애널리스트 컨센서스 등 <b>객관적 지표만</b> 비교한 결과예요. PER 기준 분류이며 투자 권유가 아닙니다.
+        ※ 지표는 PER·PBR·애널리스트 컨센서스, 기술력은 <b>실제 보도된 뉴스</b>만 근거로 했어요.
+        AI 추측·전망은 넣지 않았고, 투자 권유가 아닙니다.
       </p>
     </div>
   );
