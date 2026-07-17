@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "개인정보처리방침 — Newsync",
@@ -111,6 +112,7 @@ export default function PrivacyPage() {
           이용약관 보기
         </Link>
       </div>
+      <SiteFooter />
     </main>
   );
 }

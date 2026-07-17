@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "이용약관 — Newsync",
@@ -71,6 +72,7 @@ export default function TermsPage() {
           개인정보처리방침 보기
         </Link>
       </div>
+      <SiteFooter />
     </main>
   );
 }

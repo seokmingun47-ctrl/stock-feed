@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LogoMark } from "@/components/Logo";
+import SiteFooter from "@/components/SiteFooter";
 
 interface Plan {
   name: string;
@@ -187,9 +188,11 @@ export default function PricingPage() {
       </div>
 
       {/* 결제 안내 */}
-      <p className="mx-auto max-w-md px-5 pb-16 text-center text-[12px] leading-relaxed text-muted">
+      <p className="mx-auto max-w-md px-5 pb-12 text-center text-[12px] leading-relaxed text-muted">
         언제든 해지할 수 있어요. 카드결제는 토스페이먼츠로 안전하게 처리됩니다.
       </p>
+
+      <SiteFooter />
     </main>
   );
 }

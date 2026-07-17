@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import PWARegister from "@/components/PWARegister";
+import Analytics from "@/components/Analytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -126,6 +127,7 @@ export default function RootLayout({
         />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <PWARegister />
+        <Analytics />
         {children}
       </body>
     </html>
