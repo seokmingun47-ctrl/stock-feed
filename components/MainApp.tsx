@@ -26,6 +26,24 @@ export default function MainApp({
   const [tab, setTab] = useState<Tab>("news");
   const [authors, setAuthors] = useState<Author[]>([]);
   const [editing, setEditing] = useState(false);
+  // AI 크레딧은 여기서 한 곳으로 관리 (탭마다 따로 들고 있으면 값이 어긋남)
+  const [credits, setCredits] = useState<number | null>(null);
+  const [creditsUnlimited, setCreditsUnlimited] = useState(false);
+
+  const refreshCredits = useCallback(() => {
+    fetch("/api/credits", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        setCredits(d.credits ?? null);
+        setCreditsUnlimited(!!d.unlimited);
+      })
+      .catch(() => {});
+  }, []);
+
+  // 탭을 옮길 때마다 최신 잔액 반영 (시장에서 쓴 크레딧이 뉴스탭에도 보이도록)
+  useEffect(() => {
+    refreshCredits();
+  }, [refreshCredits, tab]);
 
   // 내가 팔로우한 유저(뉴스 채널) 목록 — 뉴스탭 상단 칩
   const reloadAuthors = useCallback(() => {
@@ -51,11 +69,22 @@ export default function MainApp({
           initialTranslate={initialTranslate}
           authors={authors}
           reloadAuthors={reloadAuthors}
+          credits={credits}
+          creditsUnlimited={creditsUnlimited}
+          refreshCredits={refreshCredits}
           onLogout={onLogout}
           onEditProfile={openEdit}
         />
       </div>
-      {tab === "market" && <Market user={user} translate={initialTranslate} />}
+      {tab === "market" && (
+        <Market
+          user={user}
+          translate={initialTranslate}
+          credits={credits}
+          creditsUnlimited={creditsUnlimited}
+          refreshCredits={refreshCredits}
+        />
+      )}
       {tab === "group" && <GroupRooms user={user} />}
       {tab === "board" && (
         <Community

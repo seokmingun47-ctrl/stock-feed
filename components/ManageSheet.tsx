@@ -60,6 +60,7 @@ export default function ManageSheet({
   theme,
   onThemeChange,
   credits = null,
+  creditsUnlimited = false,
   isAdmin = false,
   adminNew = 0,
   onOpenAdmin,
@@ -78,6 +79,7 @@ export default function ManageSheet({
   theme?: Theme;
   onThemeChange?: (t: Theme) => void;
   credits?: number | null;
+  creditsUnlimited?: boolean;
   isAdmin?: boolean;
   adminNew?: number;
   onOpenAdmin?: () => void;
@@ -154,7 +156,7 @@ export default function ManageSheet({
           </div>
         )}
 
-        {credits !== null && (
+        {(creditsUnlimited || credits !== null) && (
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-full bg-accent/15 text-accent">
@@ -162,19 +164,26 @@ export default function ManageSheet({
               </span>
               <div>
                 <div className="text-[15px] font-bold text-text">
-                  AI 크레딧 <span className="text-accent">{credits.toLocaleString()}</span>
+                  AI 크레딧{" "}
+                  <span className="text-accent">
+                    {creditsUnlimited ? "무제한" : credits!.toLocaleString()}
+                  </span>
                 </div>
                 <div className="text-[11.5px] text-muted">
-                  요약·종목분석·시장분석 1회에 25
+                  {creditsUnlimited
+                    ? "관리자 계정은 차감 없이 사용해요"
+                    : "요약·종목분석·시장분석 1회에 25"}
                 </div>
               </div>
             </div>
-            <a
-              href="/pricing"
-              className="rounded-full bg-accent px-3.5 py-1.5 text-[13px] font-bold text-white"
-            >
-              프로
-            </a>
+            {!creditsUnlimited && (
+              <a
+                href="/pricing"
+                className="rounded-full bg-accent px-3.5 py-1.5 text-[13px] font-bold text-white"
+              >
+                프로
+              </a>
+            )}
           </div>
         )}
 

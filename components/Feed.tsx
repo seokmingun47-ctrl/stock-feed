@@ -51,6 +51,9 @@ export default function Feed({
   initialTranslate,
   authors,
   reloadAuthors,
+  credits,
+  creditsUnlimited,
+  refreshCredits,
   onLogout,
   onEditProfile,
 }: {
@@ -59,6 +62,9 @@ export default function Feed({
   initialTranslate: boolean;
   authors: Author[];
   reloadAuthors: () => void;
+  credits: number | null;
+  creditsUnlimited: boolean;
+  refreshCredits: () => void;
   onLogout: () => void;
   onEditProfile: () => void;
 }) {
@@ -87,7 +93,6 @@ export default function Feed({
   const [aiFollowed, setAiFollowed] = useState<string[]>([]);
   const [aiChat, setAiChat] = useState<AiApp | null>(null);
   const [theme, setTheme] = useState<Theme>("dark");
-  const [credits, setCredits] = useState<number | null>(null);
   const [adminUsers, setAdminUsers] = useState<Signup[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
@@ -119,16 +124,10 @@ export default function Feed({
     applyTheme(t);
   }, []);
 
-  // AI 크레딧 잔액 (마운트 + 리더/계정시트 열고닫을 때 갱신)
-  const fetchCredits = useCallback(() => {
-    fetch("/api/credits", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setCredits(d.credits ?? null))
-      .catch(() => {});
-  }, []);
+  // AI 크레딧은 MainApp이 보유. 리더/계정시트를 열고닫을 때 최신화만 요청.
   useEffect(() => {
-    fetchCredits();
-  }, [fetchCredits, reader, manage]);
+    refreshCredits();
+  }, [refreshCredits, reader, manage]);
 
   // 관리자: 가입자 목록 로드 + 새 가입 알림 (관리자만)
   const adminSeenKey = `stockfeed:adminSeen:${user.username}`;
@@ -481,14 +480,14 @@ export default function Feed({
             >
               <RefreshIcon spinning={loading} />
             </button>
-            {credits !== null && (
+            {(creditsUnlimited || credits !== null) && (
               <a
                 href="/pricing"
-                title="AI 크레딧 · 요금제"
+                title={creditsUnlimited ? "AI 크레딧 무제한 (관리자)" : "AI 크레딧 · 요금제"}
                 className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent hover:bg-card"
               >
                 <CreditCoin size={14} />
-                {credits.toLocaleString()}
+                {creditsUnlimited ? "∞" : credits!.toLocaleString()}
               </a>
             )}
             <button
@@ -850,6 +849,7 @@ export default function Feed({
           theme={theme}
           onThemeChange={changeTheme}
           credits={credits}
+          creditsUnlimited={creditsUnlimited}
           isAdmin={user.isAdmin}
           adminNew={adminNew}
           onOpenAdmin={openAdmin}

@@ -46,9 +46,15 @@ function loadWatch(u: string): WatchItem[] {
 export default function Market({
   user,
   translate,
+  credits,
+  creditsUnlimited,
+  refreshCredits,
 }: {
   user: User;
   translate: boolean;
+  credits: number | null;
+  creditsUnlimited: boolean;
+  refreshCredits: () => void;
 }) {
   const [view, setView] = useState<View>("quote");
   const [region, setRegion] = useState<Region>("kr");
@@ -56,7 +62,6 @@ export default function Market({
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<QuotedStock | null>(null);
   const [openMode, setOpenMode] = useState<"under" | "over" | undefined>(undefined);
-  const [credits, setCredits] = useState<number | null>(null);
   const [isPro, setIsPro] = useState(!!user.isPro);
 
   const openStock = (s: QuotedStock, mode?: "under" | "over") => {
@@ -181,14 +186,16 @@ export default function Market({
       .catch(() => setWatchStocks([]));
   }, [view, watch]);
 
-  // 크레딧 + 프로 여부
+  // 크레딧은 MainApp이 보유 — 종목 상세를 닫을 때(AI 사용 후) 최신화 요청
+  useEffect(() => {
+    refreshCredits();
+  }, [refreshCredits, open]);
+
+  // 프로 여부
   useEffect(() => {
     fetch("/api/credits", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => {
-        setCredits(d.credits ?? null);
-        setIsPro(!!d.isPro);
-      })
+      .then((d) => setIsPro(!!d.isPro))
       .catch(() => {});
   }, [open]);
 
@@ -224,13 +231,14 @@ export default function Market({
       <header className="sticky top-0 z-30 border-b border-border bg-bg/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <h1 className="text-[19px] font-extrabold tracking-tight text-text">시장</h1>
-          {credits !== null && (
+          {(creditsUnlimited || credits !== null) && (
             <a
               href="/pricing"
+              title={creditsUnlimited ? "AI 크레딧 무제한 (관리자)" : "AI 크레딧 · 요금제"}
               className="flex h-8 items-center gap-1 rounded-full bg-bg-soft px-2.5 text-[12.5px] font-black text-accent hover:bg-card"
             >
               <CreditCoin size={14} />
-              {credits.toLocaleString()}
+              {creditsUnlimited ? "∞" : credits!.toLocaleString()}
             </a>
           )}
         </div>

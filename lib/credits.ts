@@ -48,14 +48,19 @@ export interface Charge {
   reason?: string;
   code?: string;
   credits?: number; // 잔액 (성공=차감후, 부족=현재)
+  unlimited?: boolean; // 관리자/미설정 → 차감 없음
   refund?: () => Promise<void>; // AI 실패 시 환불
 }
 
-// AI 라우트 공용: 로그인 확인 + 50 차감. 크레딧 미설정이면 무제한 허용.
+// AI 라우트 공용: 로그인 확인 + 차감. 관리자/크레딧 미설정이면 무제한 허용.
 export async function chargeAI(req: NextRequest): Promise<Charge> {
   const user = await getUser(req);
   if (!user) {
     return { ok: false, status: 401, reason: "로그인이 필요해요." };
+  }
+  // 관리자는 크레딧 무제한 (차감 없음)
+  if (user.isAdmin) {
+    return { ok: true, unlimited: true };
   }
   const db = getAdminClient();
   const bal = await spendCredits(db, user.id, AI_COST);
