@@ -293,7 +293,10 @@ export const SOURCES: Source[] = [
     handle: "@SemiAnalysis_",
     category: "AI·Semiconductor",
     region: "global",
-    url: "https://semianalysis.com/feed/",
+    // ⚠️ semianalysis.com/feed/ 는 2025-09 이후 방치된 구주소(10개월째 정지).
+    //    실제 발행은 substack 쪽 → 기사 링크는 newsletter.semianalysis.com/p/...
+    //    (ALLOWED의 "semianalysis.com"이 서브도메인까지 커버해서 본문 추출 OK)
+    url: "https://semianalysis.substack.com/feed",
     domain: "semianalysis.com",
     color: "#7b3fe4",
   },

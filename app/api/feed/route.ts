@@ -33,7 +33,26 @@ export async function GET(req: NextRequest) {
   articles.sort((a, b) => b.publishedAt - a.publishedAt);
 
   // 상한을 넉넉히 — 단일 소스 필터 시 그 소스 기사가 누락되지 않도록.
-  const top = articles.slice(0, 500);
+  // ⚠️ 단순히 최신순 500개로 자르면 '가끔 올리는 소스'(예: SemiAnalysis는 주 1회)가
+  //    통째로 밀려나서 그 소스 칩을 눌렀을 때 "기사가 없어요"가 된다.
+  //    → 소스별로 최소 PER_SOURCE_MIN개는 먼저 확보한 뒤 나머지를 최신순으로 채운다.
+  const LIMIT = 500;
+  const PER_SOURCE_MIN = 10;
+  const kept = new Set<Article>();
+  const perSource = new Map<string, number>();
+  for (const a of articles) {
+    const n = perSource.get(a.sourceId) ?? 0;
+    if (n < PER_SOURCE_MIN) {
+      kept.add(a);
+      perSource.set(a.sourceId, n + 1);
+    }
+  }
+  const top = [
+    ...articles.filter((a) => kept.has(a)),
+    ...articles.filter((a) => !kept.has(a)),
+  ]
+    .slice(0, LIMIT)
+    .sort((a, b) => b.publishedAt - a.publishedAt);
 
   // 번역 대상: 집계(hidden, 예 구글뉴스)는 토글과 무관하게 항상 한국어,
   // 일반 해외(global)는 lang=ko 일 때만.
