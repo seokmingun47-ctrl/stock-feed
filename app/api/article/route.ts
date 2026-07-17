@@ -23,6 +23,11 @@ const ALLOWED = [
   "coindesk.com",
   "theverge.com",
   "techcrunch.com",
+  // 우주 · AI반도체 전문
+  "arstechnica.com",
+  "spacenews.com",
+  "nasaspaceflight.com",
+  "semianalysis.com",
   // 국내
   "hankyung.com",
   "yna.co.kr",
@@ -34,6 +39,8 @@ const ALLOWED = [
   "einfomax.co.kr",
   "hani.co.kr",
   "mt.co.kr",
+  "thelec.kr",
+  "etnews.com",
 ];
 
 function allowed(host: string): boolean {
