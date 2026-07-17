@@ -298,6 +298,103 @@ export async function getQuote(r: Resolved): Promise<Quote | null> {
   };
 }
 
+// ── 밸류에이션 유니버스 (저평가·고평가용) ──────────────────────────
+// 큐레이션 21종목으로는 매일 같은 결과라, 네이버 '시가총액' 페이지를 쓴다.
+// 이 페이지는 50종목/요청으로 PER·ROE를 표에 같이 주므로 100종목을 2요청에 끝낼 수 있다.
+// (개별 종목 상세를 100번 호출하는 것보다 훨씬 가볍다)
+export interface ValueRow {
+  name: string;
+  ticker: string;
+  symbol: string;
+  market: "KOSPI" | "KOSDAQ";
+  domestic: true;
+  price: string | null;
+  changeRate: number | null;
+  currency: "KRW";
+  per: number | null;
+  roe: number | null;
+  marketCap: number; // 억원
+}
+
+const num = (s: string): number | null => {
+  const v = Number(String(s).replace(/[,%\s]/g, ""));
+  return Number.isFinite(v) ? v : null;
+};
+
+// 우선주·스팩·리츠 등은 저평가 랭킹에서 노이즈라 제외
+function isNoise(name: string, code: string): boolean {
+  if (/우[B-C]?$/.test(name)) return true; // 삼성전자우, 현대차2우B …
+  if (/\d우[B-C]?$/.test(name)) return true;
+  if (/스팩|기업인수목적/.test(name)) return true;
+  if (/^(KODEX|TIGER|KBSTAR|ARIRANG|HANARO|SOL|ACE|PLUS|RISE)\b/i.test(name)) return true;
+  if (!code.endsWith("0")) return true; // 보통주는 대개 0으로 끝남 (우선주 5/7 제외)
+  return false;
+}
+
+async function fetchCapPage(sosok: 0 | 1, page: number): Promise<ValueRow[]> {
+  const url = `https://finance.naver.com/sise/sise_market_sum.naver?sosok=${sosok}&page=${page}`;
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), 9000);
+  try {
+    const r = await fetch(url, {
+      headers: { "User-Agent": UA, Referer: "https://finance.naver.com/" },
+      signal: c.signal,
+    });
+    if (!r.ok) return [];
+    // ⚠️ 네이버 금융 구페이지는 EUC-KR
+    const html = new TextDecoder("euc-kr").decode(await r.arrayBuffer());
+    const rows = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)]
+      .map((m) => m[1])
+      .filter((x) => x.includes("/item/main.naver?code="));
+    const out: ValueRow[] = [];
+    for (const row of rows) {
+      const code = (row.match(/code=(\d{6})/) || [])[1];
+      if (!code) continue;
+      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) =>
+        m[1].replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(),
+      );
+      // [1]종목명 [2]현재가 [4]등락률 [6]시가총액 [10]PER [11]ROE
+      const name = tds[1] || "";
+      if (!name || isNoise(name, code)) continue;
+      const per = num(tds[10] ?? "");
+      out.push({
+        name,
+        ticker: code,
+        symbol: code,
+        market: sosok === 0 ? "KOSPI" : "KOSDAQ",
+        domestic: true,
+        price: tds[2] || null,
+        changeRate: num(tds[4] ?? ""),
+        currency: "KRW",
+        per: per !== null && per > 0 && per < 2000 ? per : null, // 음수/이상치 제외
+        roe: num(tds[11] ?? ""),
+        marketCap: num(tds[6] ?? "") ?? 0,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// 시총 상위 유니버스 (KOSPI + KOSDAQ 각 pages장 = 각 50*pages 종목)
+export async function getKrValueUniverse(pages = 2): Promise<ValueRow[]> {
+  const jobs: Promise<ValueRow[]>[] = [];
+  for (let p = 1; p <= pages; p++) {
+    jobs.push(fetchCapPage(0, p));
+    jobs.push(fetchCapPage(1, p));
+  }
+  const all = (await Promise.all(jobs)).flat();
+  const seen = new Set<string>();
+  return all.filter((s) => {
+    if (seen.has(s.ticker)) return false;
+    seen.add(s.ticker);
+    return true;
+  });
+}
+
 export interface Candle {
   d: string; // localDate YYYYMMDD
   o: number;

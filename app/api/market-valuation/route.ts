@@ -1,27 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStockDetail, getQuote } from "@/lib/naver";
-import { KR_STOCKS, US_STOCKS } from "@/lib/market";
+import { getStockDetail, getQuote, getKrValueUniverse } from "@/lib/naver";
+import { US_STOCKS } from "@/lib/market";
 import { getUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const preferredRegion = "icn1";
 export const maxDuration = 30;
 
-// 저평가/고평가 — 프로 전용. 큐레이션 종목의 PER/PBR 조회 후 정렬
-export async function GET(req: NextRequest) {
-  // 프로 구독자만 실제 종목 데이터를 볼 수 있음 (Investing 스타일 모자이크)
-  const user = await getUser(req);
-  if (!user?.isPro) {
-    return NextResponse.json(
-      { ok: false, code: "PRO_ONLY", message: "저평가·고평가 분석은 프로 전용입니다." },
-      { status: 403 },
-    );
-  }
-  const region = req.nextUrl.searchParams.get("region") === "us" ? "us" : "kr";
-  const list = region === "us" ? US_STOCKS : KR_STOCKS;
+// 국내: 시총 상위 200종목(KOSPI/KOSDAQ 각 100)을 훑어 진짜 저평가/고평가를 뽑는다.
+// (예전엔 큐레이션 21종목 중 20개를 보여줘서 매일 같은 결과였음)
+async function krRows() {
+  const uni = await getKrValueUniverse(2); // 각 시장 2페이지 = 각 100종목
+  return uni
+    .filter((s) => s.per !== null)
+    .map((s) => ({
+      name: s.name,
+      ticker: s.ticker,
+      symbol: s.symbol,
+      market: s.market,
+      domestic: true,
+      per: s.per,
+      pbr: null as number | null,
+      roe: s.roe,
+      price: s.price,
+      changeRate: s.changeRate,
+      currency: "KRW",
+    }));
+}
 
+// 해외: 네이버에 미국 시총 랭킹 API가 없어 큐레이션 목록 유지 (종목별 상세 조회)
+async function usRows() {
   const rows = await Promise.all(
-    list.map(async (s) => {
+    US_STOCKS.map(async (s) => {
       try {
         const [detail, q] = await Promise.all([
           getStockDetail(s.symbol, s.domestic),
@@ -35,23 +45,36 @@ export async function GET(req: NextRequest) {
           domestic: s.domestic,
           per: detail?.per ?? null,
           pbr: detail?.pbr ?? null,
+          roe: null as number | null,
           price: q?.price ?? null,
           changeRate: q?.changeRate ?? null,
-          currency: q?.currency ?? (s.domestic ? "KRW" : "USD"),
+          currency: q?.currency ?? "USD",
         };
       } catch {
         return null;
       }
     }),
   );
+  return rows.filter((r): r is NonNullable<typeof r> => !!r && !!r.per && r.per > 0);
+}
 
-  // PER 유효(양수)한 것만 밸류에이션 평가 대상
-  const valid = rows.filter((r): r is NonNullable<typeof r> => !!r && !!r.per && r.per > 0);
+// 저평가/고평가 — 프로 전용
+export async function GET(req: NextRequest) {
+  const user = await getUser(req);
+  if (!user?.isPro) {
+    return NextResponse.json(
+      { ok: false, code: "PRO_ONLY", message: "저평가·고평가 분석은 프로 전용입니다." },
+      { status: 403 },
+    );
+  }
+  const region = req.nextUrl.searchParams.get("region") === "us" ? "us" : "kr";
+  const valid = region === "us" ? await usRows() : await krRows();
+
   const undervalued = [...valid].sort((a, b) => a.per! - b.per!).slice(0, 10);
   const overvalued = [...valid].sort((a, b) => b.per! - a.per!).slice(0, 10);
 
   return NextResponse.json(
-    { ok: true, undervalued, overvalued },
+    { ok: true, region, universe: valid.length, undervalued, overvalued },
     { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=900" } },
   );
 }
