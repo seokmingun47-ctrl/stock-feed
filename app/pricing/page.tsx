@@ -9,7 +9,8 @@ interface Plan {
   tagline: string;
   price: number;
   credits: string;
-  per: string;
+  period?: string; // 있으면 "크레딧 / 월" 처럼 붙음
+  per?: string; // 크레딧 줄 아래 보조 설명
   uses: string;
   recommend: boolean;
   highlight?: { title: string; desc: string };
@@ -41,7 +42,7 @@ const PLANS: Plan[] = [
     tagline: "AI를 마음껏 쓰고 싶은 분께.",
     price: 4900,
     credits: "10,000",
-    per: "매월 자동 충전",
+    period: "월",
     uses: "AI 약 400회",
     recommend: true,
     highlight: {
@@ -121,12 +122,12 @@ export default function PricingPage() {
               <span className="text-[18px] font-extrabold text-accent">
                 {p.credits}
                 <span className="ml-1 text-[13px] font-semibold text-muted">
-                  크레딧
+                  크레딧{p.period ? ` / ${p.period}` : ""}
                 </span>
               </span>
               <span className="text-[12px] text-muted">{p.uses}</span>
             </div>
-            <div className="mt-1 text-[11.5px] text-muted">{p.per}</div>
+            {p.per && <div className="mt-1 text-[11.5px] text-muted">{p.per}</div>}
 
             {p.highlight && (
               <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-accent/35 bg-accent/[0.08] px-3 py-3">
