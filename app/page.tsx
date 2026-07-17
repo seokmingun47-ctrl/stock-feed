@@ -59,6 +59,18 @@ export default function Home() {
       setUser(me);
       const { onboarded } = readPrefs(me ? me.username : GUEST);
       setScreen(onboarded ? "app" : "onboarding");
+
+      // /?login=1 로 들어오면 (요금제·결제 페이지에서 넘어온 경우) 로그인 창을 띄움
+      try {
+        const p = new URLSearchParams(window.location.search);
+        if (p.get("login") === "1") {
+          if (!me) setAuthOpen(true);
+          // 새로고침해도 다시 뜨지 않게 쿼리 정리
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      } catch {
+        /* noop */
+      }
     })();
   }, []);
 

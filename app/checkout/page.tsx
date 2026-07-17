@@ -174,7 +174,7 @@ export default function CheckoutPage() {
           <div className="mt-5 rounded-xl border border-border bg-bg-soft p-4 text-center">
             <p className="text-[14px] font-bold">로그인이 필요해요</p>
             <p className="mt-1 text-[12.5px] text-muted">프로 결제는 로그인 후 이용할 수 있어요.</p>
-            <Link href="/" className="mt-3 inline-block rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-bold text-white">
+            <Link href="/?login=1" className="mt-3 inline-block rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-bold text-white">
               로그인하러 가기
             </Link>
           </div>

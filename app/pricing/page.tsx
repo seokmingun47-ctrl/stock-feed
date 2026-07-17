@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LogoMark } from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
@@ -61,6 +62,15 @@ const PLANS: Plan[] = [
 ];
 
 export default function PricingPage() {
+  // 게스트는 무료 플랜을 '이용 중'이 아님 (계정이 없어 크레딧도 없음) → 로그인 유도
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null); // null=확인 중
+  useEffect(() => {
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setLoggedIn(!!d.user))
+      .catch(() => setLoggedIn(false));
+  }, []);
+
   return (
     <main className="min-h-screen bg-bg text-text">
       {/* 상단 바 */}
@@ -170,15 +180,25 @@ export default function PricingPage() {
             </ul>
 
             {p.free ? (
-              <button
-                disabled
-                className="mt-6 w-full cursor-default rounded-xl border border-border py-3 text-[15px] font-bold text-muted"
-              >
-                {p.cta}
-              </button>
+              loggedIn === false ? (
+                // 비로그인 → 무료 플랜도 가입해야 크레딧이 나옴
+                <Link
+                  href="/?login=1"
+                  className="mt-6 block w-full rounded-xl border border-accent py-3 text-center text-[15px] font-bold text-accent transition-colors hover:bg-accent/10"
+                >
+                  무료로 시작하기
+                </Link>
+              ) : (
+                <button
+                  disabled
+                  className="mt-6 w-full cursor-default rounded-xl border border-border py-3 text-[15px] font-bold text-muted"
+                >
+                  {loggedIn === null ? " " : p.cta}
+                </button>
+              )
             ) : (
               <Link
-                href="/checkout"
+                href={loggedIn === false ? "/?login=1" : "/checkout"}
                 className="mt-6 block w-full rounded-xl bg-accent py-3 text-center text-[15px] font-bold text-white transition-opacity hover:opacity-90"
               >
                 {p.cta}
