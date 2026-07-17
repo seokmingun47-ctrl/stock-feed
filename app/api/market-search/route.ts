@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
           price: qt?.price ?? null,
           changeRate: qt?.changeRate ?? null,
           currency: qt?.currency ?? (h.domestic ? "KRW" : "USD"),
+          marketOpen: qt?.marketOpen ?? false,
+          over: qt?.over ?? null,
         };
       } catch {
         return {
@@ -32,6 +34,8 @@ export async function GET(req: NextRequest) {
           price: null,
           changeRate: null,
           currency: h.domestic ? "KRW" : "USD",
+          marketOpen: false,
+          over: null,
         };
       }
     }),

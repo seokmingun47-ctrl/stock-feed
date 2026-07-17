@@ -245,10 +245,35 @@ export async function getDomesticMovers(
   return all.slice(0, size);
 }
 
+// 본장 외 거래(프리마켓/애프터마켓/시간외) — 진행 중일 때만 채워짐
+export interface OverQuote {
+  session: "PRE" | "AFTER";
+  price: string;
+  changeRate: number;
+}
+
 export interface Quote {
   price: string; // 표시용 (국내 "296,000", 해외 "193.13")
   changeRate: number; // 등락률 (%)
   currency: string; // KRW | USD ...
+  marketOpen?: boolean; // 본장 개장 여부
+  over?: OverQuote | null; // 프리/애프터마켓 실시간
+}
+
+// 네이버가 overMarketPriceInfo로 프리/애프터마켓을 같이 준다.
+// 지금 거래 중(overMarketStatus === "OPEN")일 때만 노출 — 어제치 잔여값 방지.
+function parseOver(d: Record<string, unknown>): OverQuote | null {
+  const om = d.overMarketPriceInfo as Record<string, unknown> | undefined;
+  if (!om) return null;
+  if (String(om.overMarketStatus ?? "") !== "OPEN") return null;
+  const price = String(om.overPrice ?? "").trim();
+  if (!price) return null;
+  const rate = Number(String(om.fluctuationsRatio ?? "0").replace(/,/g, ""));
+  return {
+    session: String(om.tradingSessionType ?? "") === "AFTER_MARKET" ? "AFTER" : "PRE",
+    price,
+    changeRate: Number.isFinite(rate) ? rate : 0,
+  };
 }
 
 export async function getQuote(r: Resolved): Promise<Quote | null> {
@@ -264,7 +289,13 @@ export async function getQuote(r: Resolved): Promise<Quote | null> {
   const cur =
     (d.currencyType as { code?: string } | undefined)?.code ||
     (r.domestic ? "KRW" : "USD");
-  return { price, changeRate: Number.isFinite(rate) ? rate : 0, currency: cur };
+  return {
+    price,
+    changeRate: Number.isFinite(rate) ? rate : 0,
+    currency: cur,
+    marketOpen: String(d.marketStatus ?? "") === "OPEN",
+    over: parseOver(d),
+  };
 }
 
 export interface Candle {

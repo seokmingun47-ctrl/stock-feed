@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
           price: q?.price ?? null,
           changeRate: q?.changeRate ?? null,
           currency: q?.currency ?? (s.domestic ? "KRW" : "USD"),
+          marketOpen: q?.marketOpen ?? false,
+          over: q?.over ?? null, // 프리/애프터마켓
         };
       } catch {
         return {
@@ -26,6 +28,8 @@ export async function GET(req: NextRequest) {
           price: null,
           changeRate: null,
           currency: s.domestic ? "KRW" : "USD",
+          marketOpen: false,
+          over: null,
         };
       }
     }),
@@ -34,8 +38,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     { ok: true, stocks },
     {
+      // 실시간성 위해 짧게 (프리마켓도 계속 움직임)
       headers: {
-        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+        "Cache-Control": "public, s-maxage=5, stale-while-revalidate=30",
       },
     },
   );

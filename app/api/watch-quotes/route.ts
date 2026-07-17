@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
           price: q?.price ?? null,
           changeRate: q?.changeRate ?? null,
           currency: q?.currency ?? (domestic ? "KRW" : "USD"),
+          marketOpen: q?.marketOpen ?? false,
+          over: q?.over ?? null,
         };
       } catch {
         return null;

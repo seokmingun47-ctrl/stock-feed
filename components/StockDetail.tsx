@@ -12,6 +12,13 @@ import SourceAvatar from "./SourceAvatar";
 const UP = "#f6465d";
 const DOWN = "#4b91f7";
 
+// 본장 외 거래(프리마켓/애프터마켓/시간외) — 진행 중일 때만 옴
+export interface OverQuote {
+  session: "PRE" | "AFTER";
+  price: string;
+  changeRate: number;
+}
+
 export interface QuotedStock {
   name: string;
   ticker: string;
@@ -21,7 +28,12 @@ export interface QuotedStock {
   price: string | null;
   changeRate: number | null;
   currency: string;
+  marketOpen?: boolean;
+  over?: OverQuote | null;
 }
+
+export const overLabel = (o: OverQuote, domestic: boolean): string =>
+  domestic ? "시간외" : o.session === "AFTER" ? "애프터마켓" : "프리마켓";
 
 type Period = "day" | "week" | "month";
 interface Candle {
@@ -90,6 +102,42 @@ export default function StockDetail({
   const [valReason, setValReason] = useState<{ summary: string; points: string[] } | null>(null);
   const [valBusy, setValBusy] = useState(false);
   const [valErr, setValErr] = useState("");
+  const [live, setLive] = useState<QuotedStock | null>(null);
+
+  // 실시간 시세 — 본장 + 프리/애프터마켓 모두. 10초마다 갱신.
+  useEffect(() => {
+    let alive = true;
+    const go = () =>
+      fetch("/api/watch-quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stocks: [
+            {
+              name: stock.name,
+              ticker: stock.ticker,
+              symbol: stock.symbol,
+              market: stock.market,
+              domestic: stock.domestic,
+            },
+          ],
+        }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (alive && d.ok && d.stocks?.[0]) setLive(d.stocks[0] as QuotedStock);
+        })
+        .catch(() => {});
+    go();
+    const t = setInterval(go, 10000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [stock.name, stock.ticker, stock.symbol, stock.market, stock.domestic]);
+
+  // 실시간 값 우선, 없으면 넘겨받은 값
+  const q: QuotedStock = live ?? stock;
 
   const runValuation = async () => {
     if (valBusy) return;
@@ -200,11 +248,11 @@ export default function StockDetail({
     }
   };
 
-  const up = (stock.changeRate ?? 0) > 0;
-  const down = (stock.changeRate ?? 0) < 0;
+  const up = (q.changeRate ?? 0) > 0;
+  const down = (q.changeRate ?? 0) < 0;
   const changeColor = up ? UP : down ? DOWN : "var(--muted)";
 
-  const cur = parsePrice(stock.price);
+  const cur = parsePrice(q.price);
   const target =
     analysis && cur != null
       ? cur * (1 + analysis.upsidePercent / 100)
@@ -230,19 +278,49 @@ export default function StockDetail({
               <span className="text-[17px] font-extrabold text-text">
                 {stock.name}
               </span>
-              {stock.price && (
+              {q.price && (
                 <span className="text-[15px] font-bold text-text">
-                  {fmtPrice(stock.price, stock.currency)}
+                  {fmtPrice(q.price, q.currency)}
                 </span>
               )}
-              {stock.changeRate != null && (
+              {q.changeRate != null && (
                 <span className="text-[13px] font-bold" style={{ color: changeColor }}>
                   {up ? "▲" : down ? "▼" : ""}
-                  {stock.changeRate > 0 ? "+" : ""}
-                  {stock.changeRate.toFixed(2)}%
+                  {q.changeRate > 0 ? "+" : ""}
+                  {q.changeRate.toFixed(2)}%
+                </span>
+              )}
+              {q.marketOpen && (
+                <span className="flex items-center gap-1 text-[10.5px] font-bold text-[#14c38e]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#14c38e]" />
+                  실시간
                 </span>
               )}
             </div>
+
+            {/* 본장 외 거래 (프리마켓 / 애프터마켓 / 시간외) */}
+            {q.over && (
+              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
+                <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
+                  {overLabel(q.over, q.domestic)}
+                </span>
+                <span className="text-[13px] font-bold text-text">
+                  {fmtPrice(q.over.price, q.currency)}
+                </span>
+                <span
+                  className="text-[12px] font-bold"
+                  style={{
+                    color:
+                      q.over.changeRate > 0 ? UP : q.over.changeRate < 0 ? DOWN : "var(--muted)",
+                  }}
+                >
+                  {q.over.changeRate > 0 ? "▲" : q.over.changeRate < 0 ? "▼" : ""}
+                  {q.over.changeRate > 0 ? "+" : ""}
+                  {q.over.changeRate.toFixed(2)}%
+                </span>
+              </div>
+            )}
+
             <div className="text-[11px] text-muted">
               {stock.ticker} · {stock.market} · 네이버 증권
             </div>

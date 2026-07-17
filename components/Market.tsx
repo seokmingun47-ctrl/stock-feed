@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "@/lib/community";
-import StockDetail, { type QuotedStock } from "./StockDetail";
+import StockDetail, { type QuotedStock, overLabel } from "./StockDetail";
 import CreditCoin from "./CreditCoin";
 
 const UP = "#f6465d";
@@ -134,7 +134,7 @@ export default function Market({
     if (view !== "quote") return;
     setStocks(null);
     load(region);
-    const t = setInterval(() => load(region), 30000);
+    const t = setInterval(() => load(region), 10000);
     return () => clearInterval(t);
   }, [region, view, load]);
 
@@ -150,7 +150,7 @@ export default function Market({
         )
         .catch(() => setMovers({ gainers: [], losers: [] }));
     go();
-    const t = setInterval(go, 30000);
+    const t = setInterval(go, 10000);
     return () => clearInterval(t);
   }, [region, view]);
 
@@ -176,14 +176,18 @@ export default function Market({
       return;
     }
     setWatchStocks(null);
-    fetch("/api/watch-quotes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stocks: watch }),
-    })
-      .then((r) => r.json())
-      .then((d) => setWatchStocks(d.ok ? d.stocks : []))
-      .catch(() => setWatchStocks([]));
+    const go = () =>
+      fetch("/api/watch-quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stocks: watch }),
+      })
+        .then((r) => r.json())
+        .then((d) => setWatchStocks(d.ok ? d.stocks : []))
+        .catch(() => setWatchStocks([]));
+    go();
+    const t = setInterval(go, 10000);
+    return () => clearInterval(t);
   }, [view, watch]);
 
   // 크레딧은 MainApp이 보유 — 종목 상세를 닫을 때(AI 사용 후) 최신화 요청
@@ -456,7 +460,7 @@ function Row({
             {per != null && ` · PER ${per}${pbr != null ? ` · PBR ${pbr}` : ""}`}
           </div>
         </div>
-        <div className="text-right">
+        <div className="shrink-0 text-right">
           <div className="text-[15px] font-bold text-text">
             {stock.price ? fmtPrice(stock.price, stock.currency) : "—"}
           </div>
@@ -465,6 +469,31 @@ function Row({
               {up ? "▲" : down ? "▼" : ""}
               {stock.changeRate > 0 ? "+" : ""}
               {stock.changeRate.toFixed(2)}%
+            </div>
+          )}
+          {/* 본장 외 거래 — 프리마켓/애프터마켓/시간외 */}
+          {stock.over && (
+            <div className="mt-0.5 flex items-center justify-end gap-1 text-[10.5px]">
+              <span className="rounded bg-accent/15 px-1 py-px font-bold text-accent">
+                {overLabel(stock.over, stock.domestic)}
+              </span>
+              <span className="font-bold text-muted">
+                {fmtPrice(stock.over.price, stock.currency)}
+              </span>
+              <span
+                className="font-bold"
+                style={{
+                  color:
+                    stock.over.changeRate > 0
+                      ? UP
+                      : stock.over.changeRate < 0
+                        ? DOWN
+                        : "var(--muted)",
+                }}
+              >
+                {stock.over.changeRate > 0 ? "+" : ""}
+                {stock.over.changeRate.toFixed(2)}%
+              </span>
             </div>
           )}
         </div>
