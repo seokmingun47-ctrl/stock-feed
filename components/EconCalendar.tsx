@@ -71,10 +71,12 @@ function Nums({ e }: { e: EconEvent }) {
 export default function EconCalendar({
   isGuest = false,
   onRequireLogin,
+  refreshCredits,
   onClose,
 }: {
   isGuest?: boolean;
   onRequireLogin?: () => void;
+  refreshCredits?: () => void;
   onClose: () => void;
 }) {
   const [events, setEvents] = useState<EconEvent[] | null>(null);
@@ -283,6 +285,7 @@ export default function EconCalendar({
           event={open}
           isGuest={isGuest}
           onRequireLogin={onRequireLogin}
+          refreshCredits={refreshCredits}
           onClose={() => setOpen(null)}
         />
       )}
@@ -295,11 +298,13 @@ function ExplainSheet({
   event,
   isGuest = false,
   onRequireLogin,
+  refreshCredits,
   onClose,
 }: {
   event: EconEvent;
   isGuest?: boolean;
   onRequireLogin?: () => void;
+  refreshCredits?: () => void;
   onClose: () => void;
 }) {
   const [explain, setExplain] = useState<Explain | null>(null);
@@ -326,6 +331,8 @@ function ExplainSheet({
       }).then((r) => r.json());
       if (d.ok) setExplain(d.explain);
       else setErr(d.reason || "설명을 가져오지 못했어요.");
+      // 성공이든 크레딧 부족이든 잔액이 바뀌었을 수 있으니 헤더 표시 갱신
+      refreshCredits?.();
     } catch {
       setErr("네트워크 오류가 생겼어요.");
     }

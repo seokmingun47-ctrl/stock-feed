@@ -130,10 +130,10 @@ export default function Feed({
     applyTheme(t);
   }, []);
 
-  // AI 크레딧은 MainApp이 보유. 리더/계정시트를 열고닫을 때 최신화만 요청.
+  // AI 크레딧은 MainApp이 보유. 리더/계정시트/캘린더를 열고닫을 때 최신화만 요청.
   useEffect(() => {
     refreshCredits();
-  }, [refreshCredits, reader, manage]);
+  }, [refreshCredits, reader, manage, calOpen]);
 
   // 관리자: 가입자 목록 로드 + 새 가입 알림 (관리자만)
   const adminSeenKey = `stockfeed:adminSeen:${user.username}`;
@@ -936,6 +936,7 @@ export default function Feed({
         <EconCalendar
           isGuest={isGuest}
           onRequireLogin={onRequireLogin}
+          refreshCredits={refreshCredits}
           onClose={() => setCalOpen(false)}
         />
       )}
