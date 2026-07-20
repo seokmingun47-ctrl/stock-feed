@@ -359,7 +359,7 @@ export default function Market({
             </>
           )
         ) : view === "picks" ? (
-          <StockPicks isPro={isPro} onSpend={refreshCredits} onOpen={(s) => setOpen(s)} />
+          <StockPicks region={region} isPro={isPro} onSpend={refreshCredits} onOpen={(s) => setOpen(s)} />
         ) : view === "movers" ? (
           movers === null ? (
             <SkeletonRows />
@@ -531,7 +531,10 @@ function Row({
 interface PickItem {
   name: string;
   ticker: string;
+  symbol?: string;
   market: string;
+  domestic?: boolean;
+  currency?: string;
   per: number | null;
   roe: number | null;
   price: string | null;
@@ -544,10 +547,12 @@ interface PickItem {
 }
 
 function StockPicks({
+  region,
   isPro,
   onSpend,
   onOpen,
 }: {
+  region: Region;
   isPro: boolean;
   onSpend?: () => void;
   onOpen: (s: QuotedStock) => void;
@@ -558,6 +563,12 @@ function StockPicks({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  // 국내/해외를 바꾸면 이전 추천은 무효 (섞이면 안 됨)
+  useEffect(() => {
+    setPicks(null);
+    setErr("");
+  }, [region]);
+
   const run = async () => {
     if (busy) return;
     setBusy(true);
@@ -566,7 +577,7 @@ function StockPicks({
       const d = await fetch("/api/stock-picks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify({ region }),
       }).then((r) => r.json());
       if (d.ok) {
         setPicks(d.picks ?? []);
@@ -649,12 +660,12 @@ function StockPicks({
               onOpen({
                 name: p.name,
                 ticker: p.ticker,
-                symbol: p.ticker,
+                symbol: p.symbol ?? p.ticker,
                 market: p.market,
-                domestic: true,
+                domestic: p.domestic ?? true,
                 price: p.price,
                 changeRate: p.changeRate,
-                currency: "KRW",
+                currency: p.currency ?? "KRW",
               })
             }
             className="flex w-full items-center gap-2 text-left"
@@ -670,7 +681,7 @@ function StockPicks({
             </div>
             <div className="text-right">
               <div className="text-[14px] font-bold text-text">
-                {p.price ? `${p.price}원` : "—"}
+                {p.price ? fmtPrice(p.price, p.currency ?? "KRW") : "—"}
               </div>
               {p.changeRate != null && (
                 <div

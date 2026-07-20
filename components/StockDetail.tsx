@@ -5,7 +5,7 @@ import type { User } from "@/lib/community";
 import type { Article, Source } from "@/lib/types";
 import { SOURCE_MAP } from "@/lib/sources";
 import { timeAgo } from "@/lib/format";
-import { Candles } from "./StockChart";
+import ProChart from "./ProChart";
 import ArticleReader from "./ArticleReader";
 import SourceAvatar from "./SourceAvatar";
 
@@ -435,7 +435,14 @@ export default function StockDetail({
                 </svg>
               </div>
             ) : (
-              <Candles data={candles} period={period} />
+              <ProChart
+                data={candles}
+                prediction={
+                  chartAi?.band
+                    ? { band: chartAi.band, trend: chartAi.trend }
+                    : null
+                }
+              />
             )}
           </div>
 
