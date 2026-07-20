@@ -82,12 +82,14 @@ export default function StockDetail({
   user,
   onClose,
   valuationMode,
+  moverMode,
 }: {
   stock: QuotedStock;
   translate: boolean;
   user: User;
   onClose: () => void;
   valuationMode?: "under" | "over";
+  moverMode?: "up" | "down"; // 급등락 목록에서 열었을 때
 }) {
   const [period, setPeriod] = useState<Period>("day");
   const [candles, setCandles] = useState<Candle[] | null>(null);
@@ -105,6 +107,38 @@ export default function StockDetail({
     tech?: string[];
   } | null>(null);
   const [valNews, setValNews] = useState<Article[]>([]); // 기술력 설명의 근거 기사
+  // 급등락 사유
+  const [movReason, setMovReason] = useState<{ summary: string; points: string[] } | null>(null);
+  const [movNews, setMovNews] = useState<Article[]>([]);
+  const [movBusy, setMovBusy] = useState(false);
+  const [movErr, setMovErr] = useState("");
+
+  const runMover = async () => {
+    if (movBusy || !moverMode) return;
+    setMovBusy(true);
+    setMovErr("");
+    try {
+      const d = await fetch("/api/mover-reason", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: stock.name,
+          dir: moverMode,
+          changeRate: q.changeRate ?? stock.changeRate ?? 0,
+        }),
+      }).then((r) => r.json());
+      if (!d.ok) {
+        setMovErr(d.reason || "분석에 실패했어요.");
+        return;
+      }
+      setMovReason(d.reason);
+      setMovNews(d.news ?? []);
+    } catch {
+      setMovErr("네트워크 오류예요. 다시 시도해 주세요.");
+    } finally {
+      setMovBusy(false);
+    }
+  };
   const [valBusy, setValBusy] = useState(false);
   const [valErr, setValErr] = useState("");
   const [live, setLive] = useState<QuotedStock | null>(null);
@@ -389,9 +423,55 @@ export default function StockDetail({
             </div>
           )}
 
-          {/* AI 분석 — 밸류에이션 이유 모드 vs 주가 전망 모드 */}
+          {/* AI 분석 — 급등락 사유 / 밸류에이션 이유 / 주가 전망 */}
           <div className="px-4">
-            {valuationMode ? (
+            {moverMode ? (
+              <>
+                {!movReason && !movBusy && (
+                  <button
+                    onClick={runMover}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-bold text-white"
+                    style={{
+                      background:
+                        moverMode === "up"
+                          ? "linear-gradient(90deg,#f6465d,#c3253a)"
+                          : "linear-gradient(90deg,#4b91f7,#2a63b8)",
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" />
+                    </svg>
+                    AI 분석 · {moverMode === "up" ? "급등" : "급락"}하는 이유
+                  </button>
+                )}
+                {movBusy && (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-bg-soft py-8">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" className="spin">
+                      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                    </svg>
+                    <p className="text-[13px] text-muted">
+                      {stock.name} {moverMode === "up" ? "급등" : "급락"} 관련 뉴스 확인 중…
+                    </p>
+                  </div>
+                )}
+                {movErr && !movBusy && (
+                  <div className="rounded-xl border border-border bg-bg-soft p-4 text-center">
+                    <p className="text-[13px] text-[var(--down)]">{movErr}</p>
+                    <button onClick={runMover} className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white">
+                      다시 시도
+                    </button>
+                  </div>
+                )}
+                {movReason && (
+                  <MoverReasonCard
+                    reason={movReason}
+                    dir={moverMode}
+                    news={movNews}
+                    onOpenNews={setReader}
+                  />
+                )}
+              </>
+            ) : valuationMode ? (
               <>
                 {!valReason && !valBusy && (
                   <button
@@ -498,6 +578,66 @@ export default function StockDetail({
           onClose={() => setReader(null)}
         />
       )}
+    </div>
+  );
+}
+
+// 급등/급락 사유 — 실제 뉴스 근거만
+function MoverReasonCard({
+  reason,
+  dir,
+  news,
+  onOpenNews,
+}: {
+  reason: { summary: string; points: string[] };
+  dir: "up" | "down";
+  news?: Article[];
+  onOpenNews?: (a: Article) => void;
+}) {
+  const color = dir === "up" ? UP : DOWN;
+  const title = dir === "up" ? "급등 사유" : "급락 사유";
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-bg-soft">
+      <div className="border-b border-border p-4">
+        <div className="text-[12px] font-bold" style={{ color }}>
+          {title} · 실제 뉴스 근거
+        </div>
+        {reason.summary && (
+          <p className="mt-1.5 text-[14px] leading-relaxed text-text">{reason.summary}</p>
+        )}
+      </div>
+      {reason.points.length > 0 ? (
+        <ul className="space-y-2 p-4">
+          {reason.points.map((p, i) => {
+            const m = p.match(/\[뉴스\s*(\d+)\]/);
+            const idx = m ? Number(m[1]) - 1 : -1;
+            const art = news && idx >= 0 ? news[idx] : undefined;
+            return (
+              <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
+                <span style={{ color }}>•</span>
+                <span>
+                  {p.replace(/\s*\[뉴스\s*\d+\]\s*$/, "")}
+                  {art && (
+                    <button
+                      onClick={() => onOpenNews?.(art)}
+                      className="ml-1 whitespace-nowrap rounded bg-accent/15 px-1.5 py-px align-middle text-[10.5px] font-bold text-accent hover:bg-accent/25"
+                    >
+                      근거 기사 ↗
+                    </button>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="px-4 py-3 text-[12.5px] leading-relaxed text-muted">
+          관련 뉴스에서 뚜렷한 사유를 찾지 못했어요. <b className="text-text">추측으로 채우지 않습니다.</b>
+        </p>
+      )}
+      <p className="bg-bg px-4 py-2.5 text-[11px] leading-relaxed text-muted">
+        ※ 보도된 뉴스만 근거로 정리했어요. 주가 변동 원인은 복합적일 수 있고, 투자 권유가 아닙니다.
+      </p>
     </div>
   );
 }

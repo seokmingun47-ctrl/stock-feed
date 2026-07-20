@@ -142,8 +142,9 @@ function blockParas(htmlChunk: string): string[] {
   return dedupe(lines.filter((t) => t.length > 30));
 }
 
-// 사이트 슬로건·구독 유도·페이월 문구는 본문이 아님 (번역 전 원문 기준으로 거름)
+// 사이트 슬로건·구독 유도·페이월·AI안내 등은 본문이 아님 (번역 전 원문 기준으로 거름)
 const BOILERPLATE = [
+  // ── 해외 ──
   /^covering the business and politics of space$/i,
   /enter the code sent to your email/i,
   /we('|’)?ll send a verification code/i,
@@ -159,9 +160,39 @@ const BOILERPLATE = [
   /already a (subscriber|member)\?/i,
   /sign up for (our )?newsletter/i,
   /this article is (for|available to) subscribers/i,
+  /follow us on (twitter|x|facebook)/i,
+  /all rights reserved/i,
+  // ── 국내 (한경·매경 등 광고/AI/구독 유도) ──
+  /검색에서 .{0,20}기사를 더 자주 볼 수 있습니다/,
+  /머릿속에 맴돌던 질문|앨리스가 대답/,
+  /투자 권유·자문·추천에 해당하지 않습니다/,
+  /월 \d+회 제공되며 매월 \d+일 초기화/,
+  /프리미엄\d*와 함께|프리미엄\d*까지 함께 이용/,
+  /지금 바로 경험하고|경품 및 혜택을 확인/,
+  /함께해 주셔서 진심으로 감사합니다/,
+  /선납 및 자동이체 결제/,
+  /구독\s*(신청|문의|하기)/,
+  /무단\s*(전재|복제|배포)|재배포\s*금지/,
+  /저작권자\s*[ⓒ©]/,
+  /^[ⓒ©]\s*\S+/,
+  /기자\s*$|기자\s*[a-z0-9._%+-]+@/i,
+  /^\S+@\S+\.\S+$/, // 이메일만 있는 줄
+  /뉴스레터\s*(구독|신청)/,
+  /^(사진|자료)\s*=|^\[?사진\s*제공/,
+  /카카오톡\s*채널|네이버\s*구독/,
 ];
 
+// 링크 목록만 잔뜩 붙은 줄(푸터 메뉴 등)도 본문이 아님
+function looksLikeLinkDump(p: string): boolean {
+  const urls = (p.match(/https?:\/\//g) || []).length;
+  if (urls >= 2) return true; // 한 문단에 링크 2개 이상 = 메뉴/푸터
+  if (urls >= 1 && p.replace(/https?:\/\/\S+/g, "").trim().length < 20) return true;
+  if (/href\s*=/.test(p)) return true; // 마크업이 그대로 새어나온 경우
+  return false;
+}
+
 function isBoilerplate(p: string): boolean {
+  if (looksLikeLinkDump(p)) return true;
   return BOILERPLATE.some((re) => re.test(p));
 }
 

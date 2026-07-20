@@ -41,13 +41,19 @@ export async function GET(req: NextRequest) {
       }
     }),
   );
+  // ⚠️ 예전엔 0%보다 오르면 전부 '급등'이라 2% 종목까지 들어갔다.
+  //    국내는 네이버 실제 급등 순위를 쓰므로 자연히 두 자릿수인데 해외만 기준이 없었던 것.
+  //    → 최소 변동폭(MIN)을 두고, 그만큼 움직인 종목이 없으면 빈 목록을 준다(억지로 채우지 않음).
+  const MIN = 3; // %
   const valid = quotes.filter((q): q is MoverStock => !!q);
   const gainers = valid
-    .filter((s) => (s.changeRate ?? 0) > 0)
-    .sort((a, b) => (b.changeRate ?? 0) - (a.changeRate ?? 0));
+    .filter((s) => (s.changeRate ?? 0) >= MIN)
+    .sort((a, b) => (b.changeRate ?? 0) - (a.changeRate ?? 0))
+    .slice(0, 15);
   const losers = valid
-    .filter((s) => (s.changeRate ?? 0) < 0)
-    .sort((a, b) => (a.changeRate ?? 0) - (b.changeRate ?? 0));
+    .filter((s) => (s.changeRate ?? 0) <= -MIN)
+    .sort((a, b) => (a.changeRate ?? 0) - (b.changeRate ?? 0))
+    .slice(0, 15);
 
   return NextResponse.json(
     { ok: true, gainers, losers },

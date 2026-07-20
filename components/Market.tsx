@@ -62,10 +62,18 @@ export default function Market({
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<QuotedStock | null>(null);
   const [openMode, setOpenMode] = useState<"under" | "over" | undefined>(undefined);
+  const [openMover, setOpenMover] = useState<"up" | "down" | undefined>(undefined);
   const [isPro, setIsPro] = useState(!!user.isPro);
 
   const openStock = (s: QuotedStock, mode?: "under" | "over") => {
     setOpenMode(mode);
+    setOpenMover(undefined);
+    setOpen(s);
+  };
+  // 급등락 목록에서 열면 '급등/급락 이유' 모드
+  const openMoverStock = (s: QuotedStock, dir: "up" | "down") => {
+    setOpenMode(undefined);
+    setOpenMover(dir);
     setOpen(s);
   };
 
@@ -162,10 +170,15 @@ export default function Market({
       return;
     }
     setValuation(null);
-    fetch(`/api/market-valuation?region=${region}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setValuation(d.ok ? d : { undervalued: [], overvalued: [] }))
-      .catch(() => setValuation({ undervalued: [], overvalued: [] }));
+    // 시세가 움직이면 PER/순위도 바뀌므로 주기적으로 갱신 (다른 뷰와 동일)
+    const go = () =>
+      fetch(`/api/market-valuation?region=${region}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => setValuation(d.ok ? d : { undervalued: [], overvalued: [] }))
+        .catch(() => setValuation({ undervalued: [], overvalued: [] }));
+    go();
+    const t = setInterval(go, 30000);
+    return () => clearInterval(t);
   }, [region, view, isPro]);
 
   // 관심종목 시세
@@ -348,18 +361,22 @@ export default function Market({
             <>
               <SectionHeader>📈 급등 TOP</SectionHeader>
               {movers.gainers.length === 0 ? (
-                <p className="px-4 py-4 text-center text-[13px] text-muted">상승 종목이 없어요.</p>
+                <p className="px-4 py-4 text-center text-[13px] text-muted">
+                  크게 오른 종목이 아직 없어요.
+                </p>
               ) : (
                 movers.gainers.map((s) => (
-                  <Row key={"u" + s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => setOpen(s)} />
+                  <Row key={"u" + s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => openMoverStock(s, "up")} />
                 ))
               )}
               <SectionHeader>📉 급락 TOP</SectionHeader>
               {movers.losers.length === 0 ? (
-                <p className="px-4 py-4 text-center text-[13px] text-muted">하락 종목이 없어요.</p>
+                <p className="px-4 py-4 text-center text-[13px] text-muted">
+                  크게 내린 종목이 아직 없어요.
+                </p>
               ) : (
                 movers.losers.map((s) => (
-                  <Row key={"d" + s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => setOpen(s)} />
+                  <Row key={"d" + s.symbol} stock={s} starred={isStarred(s.symbol)} onStar={() => toggleStar(s)} onOpen={() => openMoverStock(s, "down")} />
                 ))
               )}
             </>
@@ -410,9 +427,11 @@ export default function Market({
           translate={translate}
           user={user}
           valuationMode={openMode}
+          moverMode={openMover}
           onClose={() => {
             setOpen(null);
             setOpenMode(undefined);
+            setOpenMover(undefined);
           }}
         />
       )}
