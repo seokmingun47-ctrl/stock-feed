@@ -344,15 +344,18 @@ export default function Market({
               desc="종목 옆 별(☆)을 눌러 관심 종목을 추가하세요."
             />
           ) : (
-            watchStocks.map((s) => (
-              <Row
-                key={s.symbol}
-                stock={s}
-                starred={isStarred(s.symbol)}
-                onStar={() => toggleStar(s)}
-                onOpen={() => setOpen(s)}
-              />
-            ))
+            <>
+              <PortfolioReview stocks={watch} isPro={isPro} onSpend={refreshCredits} />
+              {watchStocks.map((s) => (
+                <Row
+                  key={s.symbol}
+                  stock={s}
+                  starred={isStarred(s.symbol)}
+                  onStar={() => toggleStar(s)}
+                  onOpen={() => setOpen(s)}
+                />
+              ))}
+            </>
           )
         ) : view === "movers" ? (
           movers === null ? (
@@ -517,6 +520,131 @@ function Row({
           )}
         </div>
       </button>
+    </div>
+  );
+}
+
+// 관심종목 전체를 묶어 구성 진단 (프로 전용)
+function PortfolioReview({
+  stocks,
+  isPro,
+  onSpend,
+}: {
+  stocks: WatchItem[];
+  isPro: boolean;
+  onSpend?: () => void;
+}) {
+  const [review, setReview] = useState<{
+    summary: string;
+    concentration: string[];
+    balance: string[];
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  // 관심종목이 바뀌면 이전 진단은 무효
+  useEffect(() => {
+    setReview(null);
+    setErr("");
+  }, [stocks]);
+
+  const run = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const d = await fetch("/api/portfolio-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stocks }),
+      }).then((r) => r.json());
+      if (d.ok) setReview(d.review);
+      else setErr(d.reason || "진단에 실패했어요.");
+    } catch {
+      setErr("네트워크 오류예요. 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+      onSpend?.();
+    }
+  };
+
+  if (stocks.length < 2) return null;
+
+  return (
+    <div className="border-b border-border px-4 py-3">
+      {!review && !busy && (
+        <button
+          onClick={run}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent to-[#7b3fe4] py-3 text-[14.5px] font-bold text-white"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 3v18h18" />
+            <circle cx="9" cy="14" r="2.5" />
+            <circle cx="16" cy="9" r="2.5" />
+          </svg>
+          AI 포트폴리오 진단 · 내 관심종목 {stocks.length}개
+          {!isPro && <span className="rounded bg-white/20 px-1.5 py-px text-[10.5px]">프로</span>}
+        </button>
+      )}
+      {busy && (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-bg-soft py-6">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" className="spin">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+          </svg>
+          <p className="text-[13px] text-muted">업종 구성 분석 중…</p>
+        </div>
+      )}
+      {err && !busy && (
+        <div className="rounded-xl border border-border bg-bg-soft p-3.5 text-center">
+          <p className="text-[13px] text-[var(--down)]">{err}</p>
+          {/PRO|프로/.test(err) ? (
+            <a href="/pricing" className="mt-2 inline-block rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white">
+              프로 보러가기
+            </a>
+          ) : (
+            <button onClick={run} className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white">
+              다시 시도
+            </button>
+          )}
+        </div>
+      )}
+      {review && (
+        <div className="overflow-hidden rounded-2xl border border-border bg-bg-soft">
+          <div className="border-b border-border p-4">
+            <div className="text-[12px] font-bold text-accent">포트폴리오 진단</div>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-text">{review.summary}</p>
+          </div>
+          {review.concentration.length > 0 && (
+            <div className="border-b border-border p-4">
+              <div className="mb-1.5 text-[12px] font-bold text-[#f7b500]">쏠림</div>
+              <ul className="space-y-1.5">
+                {review.concentration.map((c, i) => (
+                  <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
+                    <span className="text-[#f7b500]">•</span>
+                    <span>{c}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {review.balance.length > 0 && (
+            <div className="p-4">
+              <div className="mb-1.5 text-[12px] font-bold text-[#14c38e]">분산 관점</div>
+              <ul className="space-y-1.5">
+                {review.balance.map((c, i) => (
+                  <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
+                    <span className="text-[#14c38e]">•</span>
+                    <span>{c}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="bg-bg px-4 py-2.5 text-[11px] leading-relaxed text-muted">
+            ※ 관심종목 구성만 본 것이며 특정 종목 매수·매도 권유가 아니에요.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

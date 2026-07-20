@@ -4,6 +4,7 @@ import { chargeAI } from "@/lib/credits";
 import { fetchSource } from "@/lib/rss";
 import { translateMany } from "@/lib/translate";
 import { SOURCE_MAP } from "@/lib/sources";
+import { getUser } from "@/lib/auth";
 import type { Article, Source } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -127,6 +128,15 @@ export async function POST(req: NextRequest) {
   const changeRate = Number(body.changeRate);
   if (!name) {
     return NextResponse.json({ ok: false, reason: "종목 정보가 없어요." }, { status: 400 });
+  }
+
+  // 급등락 사유는 프로 전용
+  const user = await getUser(req);
+  if (!user?.isPro) {
+    return NextResponse.json(
+      { ok: false, reason: "급등·급락 사유 분석은 프로 전용이에요.", code: "PRO_ONLY" },
+      { status: 403 },
+    );
   }
 
   const charge = await chargeAI(req);

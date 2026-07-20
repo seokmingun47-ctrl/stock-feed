@@ -298,6 +298,33 @@ export async function getQuote(r: Resolved): Promise<Quote | null> {
   };
 }
 
+// 업종 식별 — 네이버는 업종명 텍스트를 안 주고 industryCode(숫자)와 동종업계 목록만 준다.
+// 같은 코드면 같은 업종이므로, 코드로 묶고 '동종업계 대표 종목'으로 사람이 읽을 라벨을 만든다.
+export interface IndustryInfo {
+  code: string;
+  peers: string[]; // 동종업계 종목명 (라벨용)
+}
+
+export async function getIndustry(
+  symbol: string,
+  domestic: boolean,
+): Promise<IndustryInfo | null> {
+  if (!domestic) return null; // 해외는 integration API가 없음
+  const j = (await jget(
+    `https://m.stock.naver.com/api/stock/${symbol}/integration`,
+  )) as
+    | { industryCode?: unknown; industryCompareInfo?: Array<{ stockName?: unknown }> }
+    | null;
+  if (!j?.industryCode) return null;
+  return {
+    code: String(j.industryCode),
+    peers: (j.industryCompareInfo ?? [])
+      .map((p) => String(p.stockName ?? ""))
+      .filter(Boolean)
+      .slice(0, 4),
+  };
+}
+
 // ── 밸류에이션 유니버스 (저평가·고평가용) ──────────────────────────
 // 큐레이션 21종목으로는 매일 같은 결과라, 네이버 '시가총액' 페이지를 쓴다.
 // 이 페이지는 50종목/요청으로 PER·ROE를 표에 같이 주므로 100종목을 2요청에 끝낼 수 있다.

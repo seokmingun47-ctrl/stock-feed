@@ -16,6 +16,10 @@ export interface EconEvent {
 // 무료·키 불필요. 이번 주 일정만 제공(약 100건).
 const FF_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
 
+// 나스닥 경제 캘린더 — 키 불필요, 날짜별 조회라 미래 일정도 볼 수 있고 actual(실제치)까지 준다.
+// (ForexFactory는 '이번 주'만 줘서 금/토엔 볼 게 없던 문제를 해결)
+const NASDAQ_CAL = "https://api.nasdaq.com/api/calendar/economicevents?date=";
+
 // FMP 키가 있으면 기간 조회 + 실제 발표치(actual)까지 제공 (무료 플랜 250req/일)
 const FMP_KEY = process.env.FMP_API_KEY;
 
@@ -181,6 +185,111 @@ async function fetchFmp(from: string, to: string): Promise<EconEvent[] | null> {
   }
 }
 
+// 나스닥은 국가를 영문 풀네임으로 준다 → 통화코드로 통일
+const NASDAQ_COUNTRY: Record<string, string> = {
+  "United States": "USD",
+  "Euro Zone": "EUR",
+  Germany: "EUR",
+  France: "EUR",
+  Italy: "EUR",
+  Spain: "EUR",
+  Japan: "JPY",
+  "United Kingdom": "GBP",
+  China: "CNY",
+  "South Korea": "KRW",
+  Australia: "AUD",
+  Canada: "CAD",
+  Switzerland: "CHF",
+  "New Zealand": "NZD",
+};
+
+// 나스닥 피드엔 중요도가 없어서 지표명으로 판정한다.
+// (FXEmpire에 impact가 있지만 날짜 파라미터를 무시하고 같은 데이터만 줘서 병합 불가)
+const HIGH = /\b(CPI|PPI|Consumer Price|Producer Price|Non[- ]?Farm|Nonfarm|Payroll|Unemployment Rate|GDP|Interest Rate|Rate Decision|FOMC|Fed Interest|ECB|BOJ|BOE|Retail Sales|PCE|Jobless Claims)\b/i;
+const MEDIUM =
+  /\b(PMI|ISM|Consumer Confidence|Consumer Sentiment|Industrial Production|Trade Balance|Housing Starts|Building Permits|Durable Goods|Factory Orders|Business Climate|IFO|ZEW|Crude Oil Inventories|Employment Change)\b/i;
+const MAJOR = new Set(["USD", "EUR", "JPY", "GBP", "CNY", "KRW"]);
+
+function impactByName(name: string, cc: string): number {
+  if (/Non[- ]?Trading Day|Holiday/i.test(name)) return 0;
+  const major = MAJOR.has(cc);
+  if (HIGH.test(name)) return major ? 3 : 2;
+  if (MEDIUM.test(name)) return major ? 2 : 1;
+  return 1;
+}
+
+const cleanVal = (s: unknown): string => {
+  const t = String(s ?? "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .trim();
+  return t === "-" ? "" : t;
+};
+
+interface NasdaqRow {
+  gmt?: string;
+  country?: string;
+  eventName?: string;
+  actual?: string;
+  consensus?: string;
+  previous?: string;
+  description?: string;
+}
+
+// 나스닥: from~to 를 하루씩 병렬 조회 (14일 ≈ 0.5초)
+async function fetchNasdaq(from: string, to: string): Promise<EconEvent[] | null> {
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  if (Number.isNaN(+start) || Number.isNaN(+end) || end < start) return null;
+  const days: string[] = [];
+  for (let t = +start; t <= +end && days.length <= 45; t += 864e5) {
+    days.push(new Date(t).toISOString().slice(0, 10));
+  }
+  try {
+    const chunks = await Promise.all(
+      days.map(async (day) => {
+        const c = new AbortController();
+        const timer = setTimeout(() => c.abort(), 9000);
+        try {
+          const r = await fetch(`${NASDAQ_CAL}${day}`, {
+            headers: { "User-Agent": UA, Accept: "application/json" },
+            signal: c.signal,
+            next: { revalidate: 900 },
+          });
+          if (!r.ok) return [];
+          const j = (await r.json()) as { data?: { rows?: NasdaqRow[] } };
+          const rows = j?.data?.rows ?? [];
+          return rows
+            .filter((e) => e.eventName)
+            .map((e, i) => {
+              const cc = NASDAQ_COUNTRY[String(e.country ?? "")] ?? "";
+              const gmt = /^\d{1,2}:\d{2}$/.test(String(e.gmt ?? "")) ? e.gmt : "00:00";
+              return {
+                id: `nq-${day}-${cc}-${i}`,
+                date: `${day}T${String(gmt).padStart(5, "0")}:00Z`,
+                country: cc,
+                title: String(e.eventName),
+                titleEn: String(e.eventName),
+                impact: impactByName(String(e.eventName), cc),
+                forecast: cleanVal(e.consensus),
+                previous: cleanVal(e.previous),
+                actual: cleanVal(e.actual),
+              } satisfies EconEvent;
+            });
+        } catch {
+          return [];
+        } finally {
+          clearTimeout(timer);
+        }
+      }),
+    );
+    const all = chunks.flat();
+    return all.length ? all : null;
+  } catch {
+    return null;
+  }
+}
+
 // ForexFactory: 키 불필요, 이번 주만, actual 없음
 async function fetchFf(): Promise<EconEvent[]> {
   let raw: FFRaw[] = [];
@@ -216,10 +325,18 @@ export async function getEconEvents(
   from: string,
   to: string,
   lang = "ko",
-): Promise<{ events: EconEvent[]; source: "fmp" | "ff" }> {
-  const fmp = await fetchFmp(from, to);
-  const events = fmp ?? (await fetchFf());
-  const source: "fmp" | "ff" = fmp ? "fmp" : "ff";
+): Promise<{ events: EconEvent[]; source: "fmp" | "nasdaq" | "ff" }> {
+  // 우선순위: FMP(유료키 있으면) → 나스닥(무료·미래일정+실제치) → ForexFactory(이번 주만)
+  let source: "fmp" | "nasdaq" | "ff" = "fmp";
+  let events = await fetchFmp(from, to);
+  if (!events) {
+    events = await fetchNasdaq(from, to);
+    source = "nasdaq";
+  }
+  if (!events) {
+    events = await fetchFf();
+    source = "ff";
+  }
 
   if (lang !== "ko" || events.length === 0) return { events, source };
 

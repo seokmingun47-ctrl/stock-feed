@@ -80,7 +80,7 @@ export default function EconCalendar({
   onClose: () => void;
 }) {
   const [events, setEvents] = useState<EconEvent[] | null>(null);
-  const [source, setSource] = useState<"fmp" | "ff">("ff");
+  const [source, setSource] = useState<"fmp" | "nasdaq" | "ff">("ff");
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState(() => dayKey(new Date()));
   const [minImpact, setMinImpact] = useState(0);
@@ -100,7 +100,7 @@ export default function EconCalendar({
       .then((d) => {
         if (!alive) return;
         setEvents(d.events ?? []);
-        setSource(d.source === "fmp" ? "fmp" : "ff");
+        setSource(d.source === "fmp" ? "fmp" : d.source === "nasdaq" ? "nasdaq" : "ff");
       })
       .catch(() => alive && setEvents([]));
     return () => {
@@ -231,7 +231,7 @@ export default function EconCalendar({
 
           <p className="px-4 py-3 text-center text-[11px] text-muted">
             시간 기준: 사용자 현지 시간
-            {source === "ff" && " · 이번 주 일정이 제공돼요"}
+            {source === "ff" ? " · 이번 주 일정이 제공돼요" : " · 실제 발표치까지 표시돼요"}
           </p>
 
           <div className="border-t border-border">
