@@ -29,6 +29,32 @@ interface Line {
 const UP = "#f6465d";
 const DOWN = "#4b91f7";
 
+// 네이버 차트와 동일한 이동평균 구성
+const MAS: { p: number; color: string }[] = [
+  { p: 5, color: "#22c55e" },
+  { p: 20, color: "#f6465d" },
+  { p: 60, color: "#f59e0b" },
+  { p: 120, color: "#a855f7" },
+];
+
+// ⚠️ 이동평균은 '전체 데이터'로 먼저 계산해야 한다.
+// 보이는 구간만 잘라서 계산하면 화면 왼쪽 60·120일선이 통째로 비거나 값이 틀어진다.
+function movingAverages(all: Candle[]): Map<number, (number | null)[]> {
+  const closes = all.map((c) => c.c);
+  const out = new Map<number, (number | null)[]>();
+  for (const { p } of MAS) {
+    const line: (number | null)[] = [];
+    let sum = 0;
+    for (let i = 0; i < closes.length; i++) {
+      sum += closes[i];
+      if (i >= p) sum -= closes[i - p];
+      line.push(i >= p - 1 ? sum / p : null);
+    }
+    out.set(p, line);
+  }
+  return out;
+}
+
 export default function ProChart({
   data,
   prediction,
@@ -48,6 +74,7 @@ export default function ProChart({
     e: N,
   }));
   const [tool, setTool] = useState<Tool>("none");
+  const [showMa, setShowMa] = useState(true);
   const [lines, setLines] = useState<Line[]>([]);
   const [draft, setDraft] = useState<Line | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -65,11 +92,23 @@ export default function ProChart({
   // 예측을 그릴 때 오른쪽에 미래 공간을 확보
   const FUTURE = prediction?.band ? 12 : 0;
 
+  // 전체 기준으로 계산해두고, 화면엔 보이는 구간만 잘라 쓴다
+  const maAll = useMemo(() => movingAverages(all), [all]);
+
   const view = useMemo(() => {
     const s = Math.max(0, Math.min(range.s, N - 5));
     const e = Math.max(s + 5, Math.min(range.e, N));
     return all.slice(s, e);
   }, [all, range, N]);
+
+  // 보이는 구간의 이동평균 (null = 아직 기간이 안 찬 구간)
+  const maView = useMemo(() => {
+    const s = Math.max(0, Math.min(range.s, N - 5));
+    const e = Math.max(s + 5, Math.min(range.e, N));
+    const out = new Map<number, (number | null)[]>();
+    for (const { p } of MAS) out.set(p, (maAll.get(p) ?? []).slice(s, e));
+    return out;
+  }, [maAll, range, N]);
 
   const n = view.length;
   const step = innerW / Math.max(n + FUTURE, 1);
@@ -80,6 +119,16 @@ export default function ProChart({
     const lows = view.map((c) => c.l);
     let hi = Math.max(...highs);
     let lo = Math.min(...lows);
+    // 이동평균선이 화면 밖으로 잘리지 않게 범위에 포함
+    if (showMa) {
+      for (const { p } of MAS) {
+        for (const v of maView.get(p) ?? []) {
+          if (v == null) continue;
+          hi = Math.max(hi, v);
+          lo = Math.min(lo, v);
+        }
+      }
+    }
     // 예측 범위도 화면에 들어오게
     if (prediction?.band) {
       hi = Math.max(hi, prediction.band.high);
@@ -87,7 +136,7 @@ export default function ProChart({
     }
     const pad = (hi - lo) * 0.06 || hi * 0.02 || 1;
     return { pMin: lo - pad, pMax: hi + pad };
-  }, [view, prediction]);
+  }, [view, prediction, showMa, maView]);
 
   const volMax = Math.max(...view.map((c) => c.v), 1);
   const yP = useCallback(
@@ -224,6 +273,15 @@ export default function ProChart({
           </button>
         ))}
         <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={() => setShowMa((v) => !v)}
+            title="이동평균선"
+            className={`h-8 rounded-lg px-2 text-[11.5px] font-bold transition-colors ${
+              showMa ? "bg-accent/15 text-accent" : "bg-bg-soft text-muted"
+            }`}
+          >
+            이평
+          </button>
           <button onClick={() => zoom(1.3)} title="축소" className="grid h-8 w-8 place-items-center rounded-lg bg-bg-soft text-muted">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M5 12h14" /></svg>
           </button>
@@ -239,6 +297,24 @@ export default function ProChart({
           )}
         </div>
       </div>
+
+      {/* 이동평균 범례 — 각 선의 현재값 */}
+      {showMa && (
+        <div className="mb-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 px-1 text-[10.5px]">
+          <span className="font-bold text-muted">이동평균</span>
+          {MAS.map(({ p, color }) => {
+            const vals = maView.get(p) ?? [];
+            const v = [...vals].reverse().find((x) => x != null) ?? null;
+            return (
+              <span key={p} className="flex items-center gap-1" style={{ color }}>
+                <span className="inline-block h-[2px] w-3 rounded" style={{ backgroundColor: color }} />
+                {p}
+                {v != null && <span className="text-muted">{fmt(v)}</span>}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       <svg
         ref={svgRef}
@@ -275,6 +351,35 @@ export default function ProChart({
             </text>
           </g>
         )}
+
+        {/* 이동평균선 — 캔들 아래에 깔아 캔들이 가려지지 않게 */}
+        {showMa &&
+          MAS.map(({ p, color }) => {
+            const vals = maView.get(p) ?? [];
+            // null 구간에서 선이 이어지지 않도록 연속 구간별로 끊어 그린다
+            const segs: string[] = [];
+            let cur: string[] = [];
+            vals.forEach((v, i) => {
+              if (v == null) {
+                if (cur.length > 1) segs.push(cur.join(" "));
+                cur = [];
+                return;
+              }
+              cur.push(`${cx(i).toFixed(1)},${yP(v).toFixed(1)}`);
+            });
+            if (cur.length > 1) segs.push(cur.join(" "));
+            return segs.map((pts, k) => (
+              <polyline
+                key={`ma${p}-${k}`}
+                points={pts}
+                fill="none"
+                stroke={color}
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+                opacity="0.9"
+              />
+            ));
+          })}
 
         {/* 캔들 */}
         {view.map((c, i) => {
