@@ -107,6 +107,41 @@ export default function StockDetail({
     tech?: string[];
   } | null>(null);
   const [valNews, setValNews] = useState<Article[]>([]); // 기술력 설명의 근거 기사
+  // AI 차트 분석
+  const [chartAi, setChartAi] = useState<{
+    trend: string;
+    summary: string;
+    levels: string[];
+    patterns: string[];
+    outlook: string;
+    band: { low: number; high: number } | null;
+  } | null>(null);
+  const [chartBusy, setChartBusy] = useState(false);
+  const [chartAiErr, setChartAiErr] = useState("");
+
+  const runChartAi = async () => {
+    if (chartBusy) return;
+    setChartBusy(true);
+    setChartAiErr("");
+    try {
+      const d = await fetch("/api/chart-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: stock.name,
+          symbol: stock.symbol,
+          domestic: stock.domestic,
+        }),
+      }).then((r) => r.json());
+      if (d.ok) setChartAi(d.analysis);
+      else setChartAiErr(d.reason || "분석에 실패했어요.");
+    } catch {
+      setChartAiErr("네트워크 오류예요. 다시 시도해 주세요.");
+    } finally {
+      setChartBusy(false);
+    }
+  };
+
   // 급등락 사유
   const [movReason, setMovReason] = useState<{ summary: string; points: string[] } | null>(null);
   const [movNews, setMovNews] = useState<Article[]>([]);
@@ -404,6 +439,45 @@ export default function StockDetail({
             )}
           </div>
 
+          {/* AI 차트 분석 */}
+          <div className="mb-4 px-4">
+            {!chartAi && !chartBusy && (
+              <button
+                onClick={runChartAi}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/10 py-2.5 text-[13.5px] font-bold text-accent hover:bg-accent/20"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 3v18h18" />
+                  <path d="M7 14l3-3 3 3 5-6" />
+                </svg>
+                AI 차트 분석 · 추세와 지지·저항
+              </button>
+            )}
+            {chartBusy && (
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-bg-soft py-4 text-[13px] text-muted">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.4" strokeLinecap="round" className="spin">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                </svg>
+                차트 지표 계산 중…
+              </div>
+            )}
+            {chartAiErr && !chartBusy && (
+              <div className="rounded-xl border border-border bg-bg-soft p-3.5 text-center">
+                <p className="text-[13px] text-[var(--down)]">{chartAiErr}</p>
+                {/프로/.test(chartAiErr) ? (
+                  <a href="/pricing" className="mt-2 inline-block rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white">
+                    프로 보러가기
+                  </a>
+                ) : (
+                  <button onClick={runChartAi} className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white">
+                    다시 시도
+                  </button>
+                )}
+              </div>
+            )}
+            {chartAi && <ChartAnalysisCard a={chartAi} currency={stock.currency} />}
+          </div>
+
           {/* 주요 지표 */}
           {metrics && (
             <div className="mb-4 px-4">
@@ -578,6 +652,91 @@ export default function StockDetail({
           onClose={() => setReader(null)}
         />
       )}
+    </div>
+  );
+}
+
+// AI 차트 분석 — 지표는 서버가 계산, AI는 해석만
+function ChartAnalysisCard({
+  a,
+  currency,
+}: {
+  a: {
+    trend: string;
+    summary: string;
+    levels: string[];
+    patterns: string[];
+    outlook: string;
+    band: { low: number; high: number } | null;
+  };
+  currency: string;
+}) {
+  const color = a.trend === "상승" ? UP : a.trend === "하락" ? DOWN : "var(--muted)";
+  const fmt = (n: number) =>
+    currency === "KRW" ? `${Math.round(n).toLocaleString()}원` : `$${n.toFixed(2)}`;
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-bg-soft">
+      <div className="flex items-center gap-2 border-b border-border p-4">
+        <span
+          className="rounded-full px-2 py-0.5 text-[12px] font-black"
+          style={{ color, backgroundColor: `${color}22` }}
+        >
+          {a.trend}
+        </span>
+        <p className="flex-1 text-[13.5px] leading-relaxed text-text">{a.summary}</p>
+      </div>
+
+      {a.band && (
+        <div className="border-b border-border px-4 py-3">
+          <div className="mb-1 text-[12px] font-bold text-accent">1주일 통계적 변동 범위</div>
+          <div className="text-[15px] font-extrabold text-text">
+            {fmt(a.band.low)} ~ {fmt(a.band.high)}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">
+            최근 20일 변동성으로 계산한 범위예요. 예측이 아니라 통계값입니다.
+          </p>
+        </div>
+      )}
+
+      {a.levels.length > 0 && (
+        <div className="border-b border-border p-4">
+          <div className="mb-1.5 text-[12px] font-bold text-[#f7b500]">지지 · 저항</div>
+          <ul className="space-y-1.5">
+            {a.levels.map((x, i) => (
+              <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
+                <span className="text-[#f7b500]">•</span>
+                <span>{x}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {a.patterns.length > 0 && (
+        <div className="border-b border-border p-4">
+          <div className="mb-1.5 text-[12px] font-bold text-muted">관찰된 패턴</div>
+          <ul className="space-y-1.5">
+            {a.patterns.map((x, i) => (
+              <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
+                <span className="text-muted">•</span>
+                <span>{x}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {a.outlook && (
+        <div className="p-4">
+          <div className="mb-1.5 text-[12px] font-bold text-accent">시나리오</div>
+          <p className="text-[13.5px] leading-relaxed text-text">{a.outlook}</p>
+        </div>
+      )}
+
+      <p className="bg-bg px-4 py-2.5 text-[11px] leading-relaxed text-muted">
+        ※ 이동평균·RSI·변동성 등 <b>계산된 지표</b>만 해석한 결과예요. 미래 주가를 맞히는 것이
+        아니며 투자 권유가 아닙니다.
+      </p>
     </div>
   );
 }

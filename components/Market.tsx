@@ -9,7 +9,7 @@ const UP = "#f6465d";
 const DOWN = "#4b91f7";
 
 type Region = "kr" | "us";
-type View = "quote" | "watch" | "movers" | "value";
+type View = "quote" | "watch" | "movers" | "value" | "picks";
 
 interface WatchItem {
   name: string;
@@ -27,6 +27,7 @@ const VIEWS: [View, string][] = [
   ["quote", "시세"],
   ["watch", "관심"],
   ["movers", "급등락"],
+  ["picks", "AI 추천"],
   ["value", "저평가·고평가"],
 ];
 
@@ -357,6 +358,8 @@ export default function Market({
               ))}
             </>
           )
+        ) : view === "picks" ? (
+          <StockPicks isPro={isPro} onSpend={refreshCredits} onOpen={(s) => setOpen(s)} />
         ) : view === "movers" ? (
           movers === null ? (
             <SkeletonRows />
@@ -520,6 +523,204 @@ function Row({
           )}
         </div>
       </button>
+    </div>
+  );
+}
+
+// AI 종목 추천 (프로 전용) — 정량 스크리닝 + 실제 뉴스 근거
+interface PickItem {
+  name: string;
+  ticker: string;
+  market: string;
+  per: number | null;
+  roe: number | null;
+  price: string | null;
+  changeRate: number | null;
+  score: number;
+  reasons: string[];
+  newsPoints: string[];
+  risk?: string[];
+  news?: { title: string; link: string }[];
+}
+
+function StockPicks({
+  isPro,
+  onSpend,
+  onOpen,
+}: {
+  isPro: boolean;
+  onSpend?: () => void;
+  onOpen: (s: QuotedStock) => void;
+}) {
+  const [picks, setPicks] = useState<PickItem[] | null>(null);
+  const [criteria, setCriteria] = useState("");
+  const [screened, setScreened] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const run = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const d = await fetch("/api/stock-picks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      }).then((r) => r.json());
+      if (d.ok) {
+        setPicks(d.picks ?? []);
+        setCriteria(d.criteria ?? "");
+        setScreened(d.screened ?? 0);
+      } else setErr(d.reason || "추천을 가져오지 못했어요.");
+    } catch {
+      setErr("네트워크 오류예요. 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+      onSpend?.();
+    }
+  };
+
+  if (busy) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-16">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" className="spin">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+        </svg>
+        <p className="text-[13px] text-muted">시총 상위 종목 스크리닝 + 뉴스 분석 중…</p>
+        <p className="text-[11.5px] text-muted">10초 정도 걸려요</p>
+      </div>
+    );
+  }
+
+  if (err) {
+    return (
+      <div className="px-8 py-16 text-center">
+        <p className="text-[14px] font-bold text-text">{err}</p>
+        {/프로/.test(err) ? (
+          <a href="/pricing" className="mt-3 inline-block rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-bold text-white">
+            프로 보러가기
+          </a>
+        ) : (
+          <button onClick={run} className="mt-3 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-bold text-white">
+            다시 시도
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (!picks) {
+    return (
+      <div className="px-6 py-14 text-center">
+        <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-accent/15 text-accent">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2-6.3-4.6-6.3 4.6L7.9 13.8 2 9.4h7.6z" />
+          </svg>
+        </div>
+        <h3 className="text-[16px] font-extrabold text-text">AI 종목 추천</h3>
+        <p className="mx-auto mt-1.5 max-w-[300px] text-[13px] leading-relaxed text-muted">
+          시총 상위 종목을 <b className="text-text">PER·ROE로 먼저 걸러낸 뒤</b>, 실제 보도된
+          뉴스만 근거로 추천 이유를 설명해요. AI가 임의로 종목을 지어내지 않습니다.
+        </p>
+        <button
+          onClick={run}
+          className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-bold text-white"
+        >
+          종목 추천받기
+          {!isPro && <span className="rounded bg-white/20 px-1.5 py-px text-[10.5px]">프로</span>}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="border-b border-border bg-bg-soft px-4 py-2.5">
+        <div className="text-[12px] font-bold text-text">선별 기준</div>
+        <div className="mt-0.5 text-[11.5px] leading-relaxed text-muted">
+          {criteria} · 검토 {screened}종목
+        </div>
+      </div>
+      {picks.map((p, i) => (
+        <div key={p.ticker} className="border-b border-border px-4 py-3.5">
+          <button
+            onClick={() =>
+              onOpen({
+                name: p.name,
+                ticker: p.ticker,
+                symbol: p.ticker,
+                market: p.market,
+                domestic: true,
+                price: p.price,
+                changeRate: p.changeRate,
+                currency: "KRW",
+              })
+            }
+            className="flex w-full items-center gap-2 text-left"
+          >
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/15 text-[12px] font-black text-accent">
+              {i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[15px] font-bold text-text">{p.name}</div>
+              <div className="text-[11px] text-muted">
+                {p.ticker} · {p.market} · PER {p.per} · ROE {p.roe}%
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[14px] font-bold text-text">
+                {p.price ? `${p.price}원` : "—"}
+              </div>
+              {p.changeRate != null && (
+                <div
+                  className="text-[12px] font-bold"
+                  style={{ color: p.changeRate > 0 ? UP : p.changeRate < 0 ? DOWN : "var(--muted)" }}
+                >
+                  {p.changeRate > 0 ? "+" : ""}
+                  {p.changeRate.toFixed(2)}%
+                </div>
+              )}
+            </div>
+          </button>
+
+          <ul className="mt-2.5 space-y-1">
+            {p.reasons.map((r, k) => (
+              <li key={k} className="flex gap-1.5 text-[12.5px] leading-snug text-muted">
+                <span className="text-accent">지표</span>
+                <span>{r}</span>
+              </li>
+            ))}
+            {p.newsPoints.map((r, k) => (
+              <li key={`n${k}`} className="flex gap-1.5 text-[12.5px] leading-snug text-text">
+                <span className="shrink-0 text-[#14c38e]">뉴스</span>
+                <span>{r.replace(/\s*\[뉴스\s*\d+\]/g, "")}</span>
+              </li>
+            ))}
+            {p.newsPoints.length === 0 && (
+              <li className="text-[12px] text-muted">
+                최근 뉴스에서 사업·실적 근거를 찾지 못해 지표만 표시했어요.
+              </li>
+            )}
+            {(p.risk ?? []).map((r, k) => (
+              <li key={`r${k}`} className="flex gap-1.5 text-[12.5px] leading-snug text-[#f7b500]">
+                <span className="shrink-0">주의</span>
+                {/* [뉴스N]·[지표] 같은 내부 인용 태그는 화면에선 숨김 */}
+                <span>{r.replace(/\s*\[(뉴스\s*\d+|지표)\]/g, "")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <p className="px-4 py-4 text-center text-[11px] leading-relaxed text-muted">
+        ※ 정량 지표로 걸러낸 뒤 보도된 뉴스만 정리한 결과예요. 매수·매도 권유가 아니며 투자
+        판단과 책임은 본인에게 있어요.
+      </p>
+      <div className="px-4 pb-4">
+        <button onClick={run} className="w-full rounded-xl border border-border py-2.5 text-[13px] font-bold text-muted">
+          다시 추천받기
+        </button>
+      </div>
     </div>
   );
 }

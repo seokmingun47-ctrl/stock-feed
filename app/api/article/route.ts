@@ -53,6 +53,15 @@ function decode(s: string): string {
     .replace(/&nbsp;/g, " ")
     .replace(/&quot;/g, '"')
     .replace(/&apos;|&#39;/g, "'")
+    // 국내 기사에 자주 섞여 나오는 명명 엔티티 (안 풀면 본문에 &ldquo; 처럼 그대로 노출)
+    .replace(/&ldquo;|&rdquo;/g, '"')
+    .replace(/&lsquo;|&rsquo;/g, "'")
+    .replace(/&middot;/g, "·")
+    .replace(/&hellip;/g, "…")
+    .replace(/&ndash;/g, "–")
+    .replace(/&mdash;/g, "—")
+    .replace(/&bull;/g, "•")
+    .replace(/&times;/g, "×")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
@@ -191,9 +200,68 @@ function looksLikeLinkDump(p: string): boolean {
   return false;
 }
 
+// 스크립트/스타일 조각이 문단으로 새어나온 경우
+function looksLikeCode(p: string): boolean {
+  return (
+    /\$\(['"`.#]/.test(p) || // jQuery
+    /function\s*\(|=>\s*\{|addEventListener|document\./.test(p) ||
+    /\{[^}]*:[^}]*;[^}]*\}/.test(p) || // CSS 블록
+    /^(var|let|const|if|for|window|gtag|dataLayer)\b/.test(p)
+  );
+}
+
+// 기사 본문이 끝난 뒤 붙는 '관련기사/인기기사 헤드라인 목록'을 잘라낸다.
+// 특징: 짧고(≈60자 이하) 마침표로 안 끝나는 제목형 문장이 연달아 나온다.
+function looksLikeHeadline(p: string): boolean {
+  if (p.length > 70) return false;
+  if (/[.。]$/.test(p.trim())) return false; // 완결된 문장은 본문일 가능성
+  // 제목에 흔한 기호들
+  return /[…‘’“”"'\[\]]|\.\.\.$|[?!]$|^\[/.test(p) || p.length <= 45;
+}
+
 function isBoilerplate(p: string): boolean {
   if (looksLikeLinkDump(p)) return true;
+  if (looksLikeCode(p)) return true;
   return BOILERPLATE.some((re) => re.test(p));
+}
+
+// 기사 본문 뒤에 붙는 '관련기사' 블록을 잘라낸다. 두 가지 형태를 잡는다.
+//  A) 헤드라인만 나열      → 짧고 마침표 없는 문장이 연속
+//  B) 헤드라인+요약 쌍 반복 → (짧고 마침표X) 다음에 (요약) 이 2회 이상 반복  ← 한국경제
+function trimTrailingHeadlines(paras: string[]): string[] {
+  const MIN_KEEP = 3;
+
+  // B) 제목/요약 쌍 패턴. 쌍의 시작이 짝수/홀수 인덱스 어느 쪽인지 모르므로 둘 다 시도.
+  // 제목: 짧고 마침표로 안 끝남 / 요약: 마침표로 끝나는 서술문.
+  // (길이 임계값은 매체마다 달라 신뢰할 수 없어 '마침표 유무'를 주 신호로 쓴다)
+  const isPairAt = (i: number) => {
+    const head = paras[i];
+    const body = paras[i + 1];
+    if (!head || !body) return false;
+    const headIsTitle = head.length <= 60 && !/[.。]$/.test(head.trim());
+    const bodyIsSentence = /[.。]$/.test(body.trim()) && body.length >= 25;
+    return headIsTitle && bodyIsSentence;
+  };
+  // 끝에서부터 훑으면 관련기사 뒤에 붙은 잡동사니(저작권 등) 때문에 스캔이 바로 끊긴다.
+  // → 앞에서부터 훑어 '쌍이 2번 연속' 시작되는 지점을 찾아 거기서 자른다.
+  for (let i = MIN_KEEP; i + 3 < paras.length; i++) {
+    if (isPairAt(i) && isPairAt(i + 2)) return paras.slice(0, i);
+  }
+
+  // A) 헤드라인 연속
+  const RUN = 3;
+  let cut = paras.length;
+  let run = 0;
+  for (let i = paras.length - 1; i >= 0; i--) {
+    if (looksLikeHeadline(paras[i])) {
+      run++;
+      if (run >= RUN) cut = i;
+    } else {
+      if (run >= RUN) break;
+      run = 0;
+    }
+  }
+  return cut >= MIN_KEEP ? paras.slice(0, cut) : paras;
 }
 
 function extractParagraphs(html: string): string[] {
@@ -298,7 +366,10 @@ export async function GET(req: NextRequest) {
 
   const titleEn = meta(html, "og:title") || decode((html.match(/<title>([^<]*)<\/title>/i) || [, ""])[1]).trim();
   const image = meta(html, "og:image") || null;
-  let paras = extractParagraphs(html).filter((p) => !isBoilerplate(p));
+  // 1) 광고/코드/링크뭉치 제거 → 2) 뒤에 붙은 '다른 기사 헤드라인 목록' 절단
+  let paras = trimTrailingHeadlines(
+    extractParagraphs(html).filter((p) => !isBoilerplate(p)),
+  );
 
   // 본문 분량 제한 (번역 부하/길이)
   let acc = 0;
