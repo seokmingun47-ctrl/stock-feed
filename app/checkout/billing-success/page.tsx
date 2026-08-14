@@ -9,7 +9,6 @@ type Status = "loading" | "ok" | "fail";
 export default function BillingSuccessPage() {
   const [status, setStatus] = useState<Status>("loading");
   const [msg, setMsg] = useState("");
-  const [credits, setCredits] = useState<number | null>(null);
   const ran = useRef(false);
 
   useEffect(() => {
@@ -32,7 +31,6 @@ export default function BillingSuccessPage() {
       .then((d) => {
         if (d.ok) {
           setStatus("ok");
-          setCredits(d.addedCredits ?? null);
         } else {
           setStatus("fail");
           setMsg(d.reason || "결제 등록에 실패했어요.");
@@ -70,13 +68,8 @@ export default function BillingSuccessPage() {
             </div>
             <h1 className="mt-5 text-[22px] font-extrabold">프로 구독 시작! 🎉</h1>
             <p className="mt-2 text-[14px] leading-relaxed text-muted">
-              저평가·고평가 종목까지 모두 열렸어요. 매월 자동으로 갱신돼요.
-              {credits != null && (
-                <>
-                  <br />
-                  크레딧 <b className="text-accent">{credits.toLocaleString()}</b>도 충전됐어요.
-                </>
-              )}
+              이제 AI를 <b className="text-accent">크레딧 걱정 없이 무제한</b>으로
+              쓸 수 있어요. 매월 자동으로 갱신돼요.
             </p>
             <Link href="/" className="mt-6 inline-block w-full rounded-xl bg-accent py-3.5 text-[15px] font-extrabold text-white hover:opacity-90">
               앱으로 돌아가기
