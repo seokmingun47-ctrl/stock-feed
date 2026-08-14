@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
-import { spendCredits } from "@/lib/credits";
+import { grantProCredits, resetToFreePlan } from "@/lib/credits";
 import { chargeBilling } from "@/lib/toss";
 import { PRO_PLAN } from "@/lib/plan";
 
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
         })
         .eq("user_id", userId);
       await db.from("community_users").update({ is_pro: true }).eq("id", userId);
-      await spendCredits(db, userId, -PRO_PLAN.credits);
+      await grantProCredits(db, userId);
       try {
         await db.from("payments").insert({
           user_id: userId,
@@ -94,6 +94,7 @@ export async function GET(req: NextRequest) {
         .eq("user_id", userId);
       if (giveUp) {
         await db.from("community_users").update({ is_pro: false }).eq("id", userId);
+        await resetToFreePlan(db, userId);
       }
       summary.failed++;
     }
@@ -109,6 +110,7 @@ export async function GET(req: NextRequest) {
       .limit(500);
     for (const e of expired ?? []) {
       await db.from("community_users").update({ is_pro: false }).eq("id", String(e.user_id));
+      await resetToFreePlan(db, String(e.user_id));
       await db.from("subscriptions").update({ status: "ended" }).eq("user_id", String(e.user_id));
       summary.expired++;
     }

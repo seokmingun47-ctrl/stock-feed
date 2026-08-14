@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { getUser } from "@/lib/auth";
-import { spendCredits } from "@/lib/credits";
+import { grantProCredits } from "@/lib/credits";
 import { issueBillingKey, chargeBilling, tossKeyStatus } from "@/lib/toss";
 import { PRO_PLAN } from "@/lib/plan";
 
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
     } catch {
       /* is_pro 컬럼 미설정 */
     }
-    await spendCredits(db, user.id, -PRO_PLAN.credits);
+    await grantProCredits(db, user.id);
     try {
       await db.from("payments").insert({
         user_id: user.id,

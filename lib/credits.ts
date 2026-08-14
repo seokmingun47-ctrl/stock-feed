@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { getAdminClient } from "./supabase";
 import { getUser } from "./auth";
+import { PRO_PLAN } from "./plan";
 
 export const AI_COST = 25;
 // 무료 플랜: 가입 시 지급되는 초기 크레딧
@@ -72,6 +73,31 @@ export async function getCredits(
   } catch {
     return NaN;
   }
+}
+
+/**
+ * 프로 시작·갱신: 잔액을 프로 지급액으로 **맞춘다**(더하지 않음).
+ *
+ * 프로는 차감이 없어(chargeAI가 unlimited) 매달 더하면 쌓이기만 합니다.
+ * 3개월이면 30,000이 되고, 해지할 때 그 숫자가 사라지는 것처럼 보입니다.
+ * 설정 방식이면 구독 중에는 늘 10,000으로 보이고 해지 시 1,000이 됩니다.
+ */
+export async function grantProCredits(
+  db: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  await setCredits(db, userId, PRO_PLAN.credits);
+}
+
+/**
+ * 프로 종료(해지 만료·결제 실패): 무료 플랜 지급액으로 되돌린다.
+ * 되돌리지 않으면 해지 후에도 10,000을 들고 무료로 계속 쓰게 됩니다.
+ */
+export async function resetToFreePlan(
+  db: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  await setCredits(db, userId, SIGNUP_CREDITS);
 }
 
 export interface Charge {
