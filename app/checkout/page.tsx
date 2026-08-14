@@ -86,8 +86,15 @@ export default function CheckoutPage() {
       });
     } catch (e) {
       const code = (e as { code?: string })?.code;
+      const message = (e as { message?: string })?.message;
       if (code !== "USER_CANCEL" && code !== "PAY_PROCESS_CANCELED") {
-        setErr("결제창을 여는 중 문제가 생겼어요. 다시 시도해 주세요.");
+        // 원인을 감추면 연동 문제를 진단할 수 없어 코드를 함께 보여준다.
+        console.error("[billing] requestBillingAuth 실패", code, message, e);
+        setErr(
+          code || message
+            ? `결제창을 여는 중 문제가 생겼어요. (${code ?? "오류"}${message ? `: ${message}` : ""})`
+            : "결제창을 여는 중 문제가 생겼어요. 다시 시도해 주세요.",
+        );
       }
       setBusy(false);
     }
