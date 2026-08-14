@@ -4,7 +4,39 @@ import { getAdminClient } from "./supabase";
 import { getUser } from "./auth";
 
 export const AI_COST = 25;
-export const SIGNUP_CREDITS = 2000;
+// 무료 플랜: 가입 시 지급되는 초기 크레딧
+export const SIGNUP_CREDITS = 1000;
+
+// 관리자 지급 등: 특정 사용자 크레딧을 절대값으로 설정. 성공 시 잔액, 실패 시 NaN.
+export async function setCredits(
+  db: SupabaseClient,
+  userId: string,
+  value: number,
+): Promise<number> {
+  try {
+    const v = Math.max(0, Math.round(value));
+    const { data, error } = await db
+      .from("community_users")
+      .update({ credits: v })
+      .eq("id", userId)
+      .select("credits")
+      .single();
+    if (error) return NaN;
+    return Number((data as { credits?: number } | null)?.credits ?? v);
+  } catch {
+    return NaN;
+  }
+}
+
+// 관리자 지급: 현재 잔액에 delta 만큼 더한다(음수면 차감). spend_credits(-delta)로 원자 처리.
+// 잔액이 delta보다 작아도(충전은 항상) 성공하도록 음수 금액으로 호출.
+export async function addCredits(
+  db: SupabaseClient,
+  userId: string,
+  delta: number,
+): Promise<number> {
+  return spendCredits(db, userId, -Math.round(delta));
+}
 
 // 원자 차감: 성공 시 잔액, 부족 시 -1, RPC/컬럼 미설정 시 NaN
 export async function spendCredits(
@@ -58,8 +90,9 @@ export async function chargeAI(req: NextRequest): Promise<Charge> {
   if (!user) {
     return { ok: false, status: 401, reason: "로그인이 필요해요." };
   }
-  // 관리자는 크레딧 무제한 (차감 없음)
-  if (user.isAdmin) {
+  // 관리자·프로는 크레딧 무제한 (차감 없음).
+  // 프로의 유일한 혜택 = 광고 없이·소진 없이 AI를 마음껏 쓰는 것.
+  if (user.isAdmin || user.isPro) {
     return { ok: true, unlimited: true };
   }
   const db = getAdminClient();

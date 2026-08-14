@@ -330,7 +330,7 @@ export default function ManageSheet({
           <div className="mt-4 border-t border-border px-4 pt-4">
             <p className="text-[13px] leading-relaxed text-muted">
               지금은 <b className="text-text">둘러보기</b> 중이에요. 로그인하면 AI 분석·시장·그룹방·자유게시판을
-              쓸 수 있고, <b className="text-accent">크레딧 2,000</b>을 드려요.
+              쓸 수 있고, <b className="text-accent">크레딧 1,000</b>을 드려요.
             </p>
             <button
               onClick={onRequireLogin}

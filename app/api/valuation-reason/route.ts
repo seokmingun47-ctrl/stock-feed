@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { geminiRace } from "@/lib/gemini";
+import { aiFromGeminiBody } from "@/lib/textai";
 import { chargeAI } from "@/lib/credits";
 import { getValuationContext, type ValuationContext } from "@/lib/naver";
 import { getUser } from "@/lib/auth";
@@ -171,15 +171,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: "종목 정보가 없어요." }, { status: 400 });
   }
 
-  // 저평가·고평가 분석은 프로 전용
-  const user = await getUser(req);
-  if (!user?.isPro) {
-    return NextResponse.json(
-      { ok: false, reason: "저평가·고평가 분석은 프로 전용이에요.", code: "PRO_ONLY" },
-      { status: 403 },
-    );
-  }
-
+  // 무료 플랜도 크레딧으로 이용(프로 전용 아님). 프로는 chargeAI에서 무제한 처리.
   const charge = await chargeAI(req);
   if (!charge.ok) {
     return NextResponse.json(
@@ -207,7 +199,7 @@ export async function POST(req: NextRequest) {
     ],
     generationConfig: { temperature: 0, responseMimeType: "application/json", maxOutputTokens: 1200 },
   });
-  const out = await geminiRace(apiKey, requestBody);
+  const out = await aiFromGeminiBody(requestBody);
   if (!out) {
     await charge.refund?.();
     return NextResponse.json({ ok: false, reason: "AI가 잠시 혼잡해요. 다시 시도해 주세요." }, { status: 503 });

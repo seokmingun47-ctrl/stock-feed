@@ -68,12 +68,13 @@ async function usRows() {
   );
 }
 
-// 저평가/고평가 — 프로 전용
+// 저평가/고평가 — 무료 개방(지표 계산이라 크레딧 불필요).
 export async function GET(req: NextRequest) {
+  // 저평가·고평가는 프로 전용 기능
   const user = await getUser(req);
   if (!user?.isPro) {
     return NextResponse.json(
-      { ok: false, code: "PRO_ONLY", message: "저평가·고평가 분석은 프로 전용입니다." },
+      { ok: false, reason: "저평가·고평가는 프로 기능이에요.", code: "PRO_ONLY" },
       { status: 403 },
     );
   }
@@ -83,6 +84,14 @@ export async function GET(req: NextRequest) {
   // PER만으로 줄세우면 순위가 굳어버린다(PER은 하루에 몇 % 안 움직임).
   // 실제로 저평가/고평가는 "싼데 잘 버는가"라서 ROE를 같이 본다.
   // 점수 = PER 순위 + (ROE 순위) → 오늘 주가가 움직이면 PER이 바뀌어 순위도 따라 바뀐다.
+  // 시장 PER 중앙값 — 저평가/고평가 정도(%)의 기준 (지어낸 값 아니라 실제 분포)
+  const pers = valid.map((s) => s.per as number).filter((p) => p > 0).sort((a, b) => a - b);
+  const medianPER = pers.length ? pers[Math.floor(pers.length / 2)] : 0;
+  const clamp = (n: number) => Math.max(0, Math.min(99, Math.round(n)));
+  // 저평가 %: 중앙값 대비 얼마나 싼가. 고평가 %: 얼마나 비싼가.
+  const underPct = (per: number) => (medianPER > 0 ? clamp(((medianPER - per) / medianPER) * 100) : 0);
+  const overPct = (per: number) => (medianPER > 0 ? clamp(((per - medianPER) / medianPER) * 100) : 0);
+
   const withScore = valid.map((s) => {
     const per = s.per as number;
     const roe = typeof s.roe === "number" ? s.roe : null;
@@ -93,10 +102,12 @@ export async function GET(req: NextRequest) {
 
   const undervalued = [...withScore]
     .sort((a, b) => b.valueScore - a.valueScore) // 이익 대비 싼 순
-    .slice(0, 10);
+    .slice(0, 10)
+    .map((s) => ({ ...s, score: underPct(s.per as number) }));
   const overvalued = [...withScore]
     .sort((a, b) => (b.per as number) - (a.per as number))
-    .slice(0, 10);
+    .slice(0, 10)
+    .map((s) => ({ ...s, score: overPct(s.per as number) }));
 
   return NextResponse.json(
     {

@@ -7,6 +7,7 @@ import SourceAvatar from "./SourceAvatar";
 import LikeButton from "./LikeButton";
 import StockChart from "./StockChart";
 import { timeAgo } from "@/lib/format";
+import { handleNoCredits } from "@/lib/nocredits";
 
 interface ReaderData {
   ok: boolean;
@@ -79,6 +80,7 @@ export default function ArticleReader({
   translate,
   user,
   isGuest = false,
+  autoSummarize = false,
   onRequireLogin,
   onClose,
 }: {
@@ -87,6 +89,7 @@ export default function ArticleReader({
   translate: boolean;
   user: User;
   isGuest?: boolean;
+  autoSummarize?: boolean; // 목록에서 'AI 요약' 버튼으로 열면 본문 로드 후 자동 실행
   onRequireLogin?: () => void;
   onClose: () => void;
 }) {
@@ -190,6 +193,7 @@ export default function ArticleReader({
   const canSummarize = bodyText.trim().length >= 200;
 
   // 기사가 바뀌면 요약·종목분석 초기화
+  const autoFired = useRef(false);
   useEffect(() => {
     setSummary(null);
     setSummarizing(false);
@@ -197,24 +201,44 @@ export default function ArticleReader({
     setStocks(null);
     setAnalyzing(false);
     setStocksErr("");
+    autoFired.current = false;
   }, [article.link]);
+
+  // 목록에서 'AI 요약'으로 열었으면 본문이 준비되는 즉시 한 번 자동 실행.
+  // (게스트는 요약 함수 내부에서 로그인 유도로 빠지므로 여기선 건드리지 않는다)
+  useEffect(() => {
+    if (!autoSummarize || autoFired.current || isGuest) return;
+    if (!canSummarize) return; // 본문 추출 전에는 대기
+    autoFired.current = true;
+    summarize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSummarize, canSummarize, isGuest]);
+
+  // ⚠️ 상태값(summarizing/analyzing)은 setState 반영 전이라 같은 틱에 두 번 호출되면
+  //    둘 다 가드를 통과해 크레딧이 두 번 빠진다(자동 실행 + 수동 클릭이 겹칠 때 특히).
+  //    ref는 동기적으로 즉시 바뀌므로 두 번째 호출을 확실히 막는다.
+  const summarizingRef = useRef(false);
+  const analyzingRef = useRef(false);
 
   const summarize = async () => {
     if (isGuest) return onRequireLogin?.(); // AI는 로그인 필요
-    if (summarizing || !canSummarize) return;
+    if (summarizingRef.current || !canSummarize) return;
+    summarizingRef.current = true;
     setSummarizing(true);
     setSummaryErr("");
     const d = await postJson("/api/summarize", { title, text: bodyText });
     if (d.ok) setSummary((d.summary as string[]) ?? []);
     else if (d.timeout)
       setSummaryErr("AI가 잠시 혼잡해요. 다시 시도해 주세요.");
-    else setSummaryErr(d.reason || "요약에 실패했어요.");
+    else if (!handleNoCredits(d)) setSummaryErr(d.reason || "요약에 실패했어요.");
     setSummarizing(false);
+    summarizingRef.current = false;
   };
 
   const analyze = async () => {
     if (isGuest) return onRequireLogin?.(); // AI는 로그인 필요
-    if (analyzing || !canSummarize) return;
+    if (analyzingRef.current || !canSummarize) return;
+    analyzingRef.current = true;
     setAnalyzing(true);
     setStocksErr("");
     const d = await postJson("/api/stocks", { title, text: bodyText });
@@ -242,9 +266,10 @@ export default function ArticleReader({
     } else if (d.timeout) {
       setStocksErr("AI가 잠시 혼잡해요. 다시 시도해 주세요.");
     } else {
-      setStocksErr(d.reason || "분석에 실패했어요.");
+      if (!handleNoCredits(d)) setStocksErr(d.reason || "분석에 실패했어요.");
     }
     setAnalyzing(false);
+    analyzingRef.current = false;
   };
 
   const send = async () => {

@@ -5,6 +5,7 @@ import { SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
 import type { User } from "@/lib/community";
 import Auth from "@/components/Auth";
 import Onboarding from "@/components/Onboarding";
+import Landing from "@/components/Landing";
 import MainApp from "@/components/MainApp";
 
 const K_TRANSLATE = "stockfeed:translate";
@@ -17,7 +18,7 @@ const aiKey = (u: string) => `stockfeed:ai:${u}`;
 const GUEST = "게스트";
 const GUEST_USER: User = { id: "", username: GUEST, isAdmin: false, isPro: false };
 
-type Screen = "loading" | "onboarding" | "app";
+type Screen = "loading" | "landing" | "onboarding" | "app";
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("loading");
@@ -45,7 +46,10 @@ export default function Home() {
     };
   }
 
-  // 첫 진입: 로그인했으면 그 계정으로, 아니면 게스트로 바로 시작(로그인 창 안 띄움)
+  // 첫 진입 흐름:
+  //   로그인 안 함 → 랜딩(소개) → 시작하기 → 로그인 → 소스 팔로우 → 앱
+  //   로그인 함    → (온보딩 했으면) 앱 / (아니면) 소스 팔로우
+  // ⚠️ 비로그인 상태에서 앱으로 바로 들어가지 않게 할 것. 랜딩이 항상 첫 화면이다.
   useEffect(() => {
     (async () => {
       let me: User | null = null;
@@ -57,10 +61,14 @@ export default function Home() {
         /* noop */
       }
       setUser(me);
-      const { onboarded } = readPrefs(me ? me.username : GUEST);
-      setScreen(onboarded ? "app" : "onboarding");
+      if (me) {
+        const { onboarded } = readPrefs(me.username);
+        setScreen(onboarded ? "app" : "onboarding");
+      } else {
+        setScreen("landing");
+      }
 
-      // /?login=1 로 들어오면 (요금제·결제 페이지에서 넘어온 경우) 로그인 창을 띄움
+      // /?login=1 로 들어오면 (요금제 페이지에서 넘어온 경우) 로그인 창을 바로 띄움
       try {
         const p = new URLSearchParams(window.location.search);
         if (p.get("login") === "1") {
@@ -113,7 +121,7 @@ export default function Home() {
     setScreen("app");
   };
 
-  // 로그아웃 → 로그인 창이 아니라 게스트 상태로 되돌아감
+  // 로그아웃 → 소개(랜딩) 화면으로. 비로그인으로 앱에 남아 있으면 안 된다.
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -121,8 +129,8 @@ export default function Home() {
       /* noop */
     }
     setUser(null);
-    const { onboarded } = readPrefs(GUEST);
-    setScreen(onboarded ? "app" : "onboarding");
+    setAuthOpen(false);
+    setScreen("landing");
   };
 
   const authOverlay = authOpen && (
@@ -133,6 +141,26 @@ export default function Home() {
 
   if (screen === "loading") {
     return <div className="min-h-screen bg-bg" />;
+  }
+  if (screen === "landing") {
+    return (
+      <>
+        {/* '시작하기' → 로그인. '둘러보기' → 진짜 앱을 게스트로 체험(가짜 데모가 아니라 실제 뉴스·시세).
+            게스트는 AI·글쓰기에서 막히고, 그 순간이 가입 유도 지점이 된다. */}
+        <Landing
+          onStart={() => setAuthOpen(true)}
+          onExplore={() => {
+            const { onboarded } = readPrefs(GUEST);
+            setScreen(onboarded ? "app" : "onboarding");
+          }}
+        />
+        {authOpen && (
+          <div className="fixed inset-0 z-[70] overflow-y-auto bg-white">
+            <Auth onAuth={handleAuth} onClose={() => setAuthOpen(false)} />
+          </div>
+        )}
+      </>
+    );
   }
   if (screen === "onboarding") {
     return (

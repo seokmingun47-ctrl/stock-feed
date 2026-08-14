@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { geminiRace } from "@/lib/gemini";
+import { aiFromGeminiBody } from "@/lib/textai";
 import { chargeAI } from "@/lib/credits";
 
 export const runtime = "nodejs";
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const outText = await geminiRace(apiKey, requestBody);
+  const outText = await aiFromGeminiBody(requestBody);
   if (!outText) {
     await charge.refund?.();
     return NextResponse.json(

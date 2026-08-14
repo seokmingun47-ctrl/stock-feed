@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { geminiRace } from "@/lib/gemini";
+import { aiFromGeminiBody } from "@/lib/textai";
 import { chargeAI } from "@/lib/credits";
 import { getUser } from "@/lib/auth";
 import { getChart, type Candle } from "@/lib/naver";
@@ -128,15 +128,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: "종목 정보가 없어요." }, { status: 400 });
   }
 
-  // 차트 분석은 프로 전용
-  const user = await getUser(req);
-  if (!user?.isPro) {
-    return NextResponse.json(
-      { ok: false, reason: "AI 차트 분석은 프로 전용이에요.", code: "PRO_ONLY" },
-      { status: 403 },
-    );
-  }
-
+  // 무료 플랜도 크레딧으로 이용(프로 전용 아님). 프로는 chargeAI에서 무제한 처리.
   const charge = await chargeAI(req);
   if (!charge.ok) {
     return NextResponse.json(
@@ -155,8 +147,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ind = indicators(candles);
-  const out = await geminiRace(
-    apiKey,
+  const out = await aiFromGeminiBody(
     JSON.stringify({
       contents: [{ role: "user", parts: [{ text: buildPrompt(name, ind, candles) }] }],
       generationConfig: {

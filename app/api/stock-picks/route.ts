@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { geminiRace } from "@/lib/gemini";
+import { aiFromGeminiBody } from "@/lib/textai";
 import { chargeAI } from "@/lib/credits";
 import { getUser } from "@/lib/auth";
 import { getKrValueUniverse, getStockDetail, getQuote, type ValueRow } from "@/lib/naver";
@@ -108,19 +108,25 @@ function krToCandidates(uni: ValueRow[]): Candidate[] {
 
 // 1단계: 정량 스크리닝 — AI가 고르는 게 아니라 '실제 지표'로 후보를 좁힌다.
 // (AI에게 종목을 고르라고 하면 학습된 기억으로 아무 종목이나 뱉어 환각이 된다)
+//
+// ⚠️ 방향 전환: 예전엔 저PER(싼 종목)만 뽑아 성장·기술주가 통째로 빠졌다.
+//    이제는 '높은 ROE = 경쟁력·수익성(기술력·점유율의 대리지표)'으로 뽑는다.
+//    해자(기술·브랜드·점유율)를 가진 기업만이 자본 대비 높은 이익(ROE)을 꾸준히 낸다.
+//    PER 상한을 크게 풀어(≤80) 고성장 기술주도 후보에 포함시킨다.
 function screen(uni: Candidate[], limit: number): Candidate[] {
   return uni
     .filter(
       (s) =>
         s.per !== null &&
-        s.per > 0 &&
-        s.per < 40 && // 고평가 제외
+        s.per > 0 && // 흑자 기업만 (적자는 ROE 왜곡)
+        s.per < 80 && // 극단적 버블만 제외 — 성장주는 포함
         s.roe !== null &&
-        s.roe >= 8 && // 최소한의 수익성
-        // 국내만 초소형주 제외 (해외 큐레이션은 이미 대형주)
-        (s.marketCap === null || s.marketCap >= 3000),
+        s.roe >= 12 && // 경쟁력 있는 기업의 문턱(단순 저평가가 아니라 '잘 버는 회사')
+        // 초소형주 제외 — 시장 지위가 있는 규모(국내 5천억↑)
+        (s.marketCap === null || s.marketCap >= 5000),
     )
-    .sort((a, b) => (b.roe as number) / (b.per as number) - (a.roe as number) / (a.per as number))
+    // ROE 높은 순 = 경쟁력·수익성 우선. (예전의 ROE/PER은 싼 종목을 위로 올렸다)
+    .sort((a, b) => (b.roe as number) - (a.roe as number))
     .slice(0, limit);
 }
 
@@ -131,7 +137,7 @@ async function newsFor(name: string): Promise<Article[]> {
   const src: Source = {
     ...base,
     url: `https://news.google.com/rss/search?q=${encodeURIComponent(
-      `${name} (실적 OR 수주 OR 신제품 OR 투자 OR 전망) when:14d`,
+      `${name} (기술 OR 점유율 OR 1위 OR 경쟁력 OR 수주 OR 신제품 OR 특허 OR 실적 OR 전망) when:21d`,
     )}&hl=ko&gl=KR&ceid=KR:ko`,
   };
   try {
@@ -171,17 +177,21 @@ function buildPrompt(s: Candidate, news: Article[]): string {
 [최근 뉴스] ← 사업/실적 설명은 오직 여기서만
 ${newsBlock}
 
-이 종목이 정량 스크리닝(저PER·고ROE)에서 선별된 이유를 설명하세요.
+이 종목은 'ROE ${s.roe}%'로 자본 대비 수익성이 높아(경쟁력 있는 기업) 후보에 올랐습니다.
+[최근 뉴스]를 근거로 이 기업의 **기술력·시장 점유율·성장 잠재력**을 설명하세요.
 
 규칙(반드시 지킬 것):
 - newsPoints: **[최근 뉴스]에 실제로 있는 내용만**. 항목마다 [뉴스N] 인용 필수.
-  뉴스에 사업/실적 내용이 없으면 **빈 배열 []**. 억지로 채우지 말 것.
-- 사전 지식으로 "이 회사는 원래~" 같은 서술 금지. 없는 수치·수주·전망 창작 금지.
+  * 기술력(신기술·특허·개발), 시장 지위(점유율·1위·수주), 성장(신사업·투자·전망)을
+    뉴스에서 찾아 서술. 예) "HBM4 양산으로 AI 메모리 시장 주도 [뉴스2]"
+  * 뉴스에 그런 내용이 없으면 **빈 배열 []**. 억지로 채우지 말 것.
+- 사전 지식으로 "이 회사는 원래~", "시장 점유율 1위다" 같은 서술 금지(뉴스에 없으면 쓰지 말 것).
+  없는 수치·점유율·수주·전망 창작 금지.
 - "사라/오른다/유망" 같은 투자 권유·주가 예측 금지. 보도된 사실만 건조하게.
 - risk: 이 종목을 볼 때 주의할 점을 뉴스나 지표에 근거해 1~2개. 근거 없으면 빈 배열.
 
 아래 JSON만 응답:
-{"newsPoints":["뉴스에 나온 사업/실적 사실 [뉴스N]","..."],"risk":["주의할 점","..."]}`;
+{"newsPoints":["뉴스에 나온 기술력·점유율·성장 사실 [뉴스N]","..."],"risk":["주의할 점","..."]}`;
 }
 
 function parseOne(raw: string, newsCount: number): { newsPoints: string[]; risk: string[] } {
@@ -223,15 +233,7 @@ export async function POST(req: NextRequest) {
   }
   const region = body.region === "us" ? "us" : "kr";
 
-  // AI 종목 추천은 프로 전용
-  const user = await getUser(req);
-  if (!user?.isPro) {
-    return NextResponse.json(
-      { ok: false, reason: "AI 종목 추천은 프로 전용이에요.", code: "PRO_ONLY" },
-      { status: 403 },
-    );
-  }
-
+  // 무료 플랜도 크레딧으로 이용(프로 전용 아님). 프로는 chargeAI에서 무제한 처리.
   const charge = await chargeAI(req);
   if (!charge.ok) {
     return NextResponse.json(
@@ -260,8 +262,7 @@ export async function POST(req: NextRequest) {
       const roe = s.roe as number;
       let ai = { newsPoints: [] as string[], risk: [] as string[] };
       try {
-        const out = await geminiRace(
-          apiKey,
+        const out = await aiFromGeminiBody(
           JSON.stringify({
             contents: [{ role: "user", parts: [{ text: buildPrompt(s, news) }] }],
             generationConfig: {
@@ -314,8 +315,8 @@ export async function POST(req: NextRequest) {
     screened: uni.length,
     criteria:
       region === "us"
-        ? "PER 40배 미만 · ROE 8% 이상 (EPS/BPS 기준) → ROE/PER 상위"
-        : "PER 40배 미만 · ROE 8% 이상 · 시총 3000억 이상 → ROE/PER 상위",
+        ? "흑자 · PER 80배 미만 · ROE 12% 이상 (EPS/BPS 기준) → ROE(수익성) 상위"
+        : "흑자 · PER 80배 미만 · ROE 12% 이상 · 시총 5000억 이상 → ROE(수익성) 상위",
     credits: charge.credits,
   });
 }

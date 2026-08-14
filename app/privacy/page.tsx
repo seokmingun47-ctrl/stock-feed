@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 const UPDATED = "2026년 7월 14일";
-const CONTACT = "skylee993393@gmail.com"; // ⚠️ 운영자 문의 이메일 — 원하면 변경하세요
+const CONTACT = "seokmingun47@gmail.com"; // ⚠️ 운영자 문의 이메일 — 원하면 변경하세요
 
 export default function PrivacyPage() {
   return (

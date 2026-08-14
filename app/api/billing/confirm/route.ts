@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { getUser } from "@/lib/auth";
 import { spendCredits } from "@/lib/credits";
-import { issueBillingKey, chargeBilling } from "@/lib/toss";
+import { issueBillingKey, chargeBilling, tossKeyStatus } from "@/lib/toss";
 import { PRO_PLAN } from "@/lib/plan";
 
 export const runtime = "nodejs";
@@ -29,6 +29,17 @@ export async function POST(req: NextRequest) {
   // customerKey 소유자 확인 (남의 authKey 승인 방지)
   if (customerKey !== `user_${user.id}`) {
     return NextResponse.json({ ok: false, reason: "결제 정보가 일치하지 않아요." }, { status: 400 });
+  }
+
+  // ⚠️ 키 짝이 안 맞으면 여기서 멈춘다. 그대로 진행하면 승인이 이상하게 실패하거나
+  //    테스트 결제로 프로가 켜지는 사고가 난다.
+  const keys = tossKeyStatus();
+  if (!keys.ok) {
+    console.error("[billing] 토스 키 설정 오류:", keys.reason);
+    return NextResponse.json(
+      { ok: false, reason: "결제 설정에 문제가 있어요. 잠시 후 다시 시도해 주세요." },
+      { status: 503 },
+    );
   }
 
   // 1) 빌링키 발급

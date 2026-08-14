@@ -7,6 +7,9 @@ import Community from "./Community";
 import GroupRooms from "./GroupRooms";
 import Market from "./Market";
 import EditProfile from "./EditProfile";
+import AdRewardModal from "./AdRewardModal";
+import DesktopSidebar from "./DesktopSidebar";
+import { NO_CREDITS_EVENT } from "@/lib/nocredits";
 
 type Tab = "news" | "market" | "group" | "board";
 
@@ -49,9 +52,23 @@ export default function MainApp({
     refreshCredits();
   }, [refreshCredits, tab]);
 
-  // 뉴스 외 탭은 로그인 필요 — 게스트가 누르면 로그인 창
+  // 크레딧 부족(402) 신호를 받으면 광고 보상 모달을 띄운다
+  const [adOpen, setAdOpen] = useState(false);
+  useEffect(() => {
+    const onNoCredits = () => {
+      if (isGuest) onRequireLogin();
+      else setAdOpen(true);
+    };
+    window.addEventListener(NO_CREDITS_EVENT, onNoCredits);
+    return () => window.removeEventListener(NO_CREDITS_EVENT, onNoCredits);
+  }, [isGuest, onRequireLogin]);
+
+  // 게스트도 '보는' 탭은 열어준다 — 앱이 뭘 할 수 있는지 실제로 겪어봐야
+  // 가입할 마음이 생긴다. 글을 쓰는 곳(그룹방·자유게시판)만 로그인을 요구한다.
+  // AI 기능은 각 화면에서 따로 막으므로(크레딧 소모) 여기서 막을 필요가 없다.
+  const GUEST_OK: Tab[] = ["news", "market"];
   const go = (t: Tab) => {
-    if (isGuest && t !== "news") {
+    if (isGuest && !GUEST_OK.includes(t)) {
       onRequireLogin();
       return;
     }
@@ -74,8 +91,15 @@ export default function MainApp({
 
   return (
     <div>
-      {/* 뉴스 피드는 상태 보존 위해 항상 마운트, 숨김 처리 */}
-      <div className={tab === "news" ? "" : "hidden"}>
+      {/* 데스크톱(xl+)에서는 본문 + 사이드바를 가운데 정렬로 배치해 화면을 채운다.
+          모바일은 xl 미만이라 래퍼가 아무 영향 없이 기존과 동일. */}
+      <div className="xl:mx-auto xl:flex xl:max-w-[1180px] xl:justify-center xl:gap-6">
+        <aside className="sticky top-[56px] hidden h-[calc(100vh-72px)] w-[190px] shrink-0 self-start pt-3 xl:block">
+          <DeskNav tab={tab} go={go} />
+        </aside>
+        <div className="w-full xl:w-[600px] xl:shrink-0">
+          {/* 뉴스 피드는 상태 보존 위해 항상 마운트, 숨김 처리 */}
+          <div className={tab === "news" ? "" : "hidden"}>
         <Feed
           user={user}
           isGuest={isGuest}
@@ -108,6 +132,11 @@ export default function MainApp({
           onEditProfile={openEdit}
         />
       )}
+        </div>
+        <aside className="sticky top-[60px] hidden h-[calc(100vh-84px)] w-[340px] shrink-0 self-start overflow-y-auto py-4 xl:block">
+          <DesktopSidebar />
+        </aside>
+      </div>
 
       {editing && (
         <EditProfile
@@ -121,8 +150,14 @@ export default function MainApp({
         />
       )}
 
-      {/* 하단 탭 네비게이션 */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur">
+      <AdRewardModal
+        open={adOpen}
+        onClose={() => setAdOpen(false)}
+        onGranted={refreshCredits}
+      />
+
+      {/* 하단 탭 네비게이션 (모바일). 데스크톱은 좌측 DeskNav가 대신하므로 숨김 */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur xl:hidden">
         <div className="mx-auto flex max-w-[600px]">
           <NavItem
             active={tab === "news"}
@@ -175,6 +210,43 @@ export default function MainApp({
             <span>요금제</span>
           </a>
         </div>
+      </nav>
+    </div>
+  );
+}
+
+// 데스크톱 좌측 네비 (xl+ 전용) — 화면을 채우고 데스크톱 탐색 제공
+function DeskNav({ tab, go }: { tab: Tab; go: (t: Tab) => void }) {
+  const items: [Tab, string][] = [
+    ["news", "뉴스"],
+    ["market", "시장"],
+    ["group", "그룹방"],
+    ["board", "자유게시판"],
+  ];
+  return (
+    <div>
+      <div className="mb-4 px-3 text-[20px] font-extrabold tracking-tight">
+        <span className="text-text">New</span>
+        <span className="text-accent">sync</span>
+      </div>
+      <nav className="space-y-1">
+        {items.map(([t, label]) => (
+          <button
+            key={t}
+            onClick={() => go(t)}
+            className={`flex w-full items-center rounded-xl px-3 py-2.5 text-left text-[14.5px] font-bold transition-colors ${
+              tab === t ? "bg-accent/12 text-accent" : "text-muted hover:bg-bg-soft"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <a
+          href="/pricing"
+          className="flex w-full items-center rounded-xl px-3 py-2.5 text-[14.5px] font-bold text-muted transition-colors hover:bg-bg-soft"
+        >
+          요금제
+        </a>
       </nav>
     </div>
   );

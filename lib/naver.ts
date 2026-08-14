@@ -468,3 +468,347 @@ export async function getChart(
     .filter((x) => x.c > 0);
   return out;
 }
+
+/** 시장 지수 스냅샷 (급등락이 '이 종목만의 일'인지 판단하는 근거) */
+export interface IndexQuote {
+  name: string;
+  changeRate: number;
+}
+
+// ⚠️ 장이 닫혀 있으면 해외 지수는 rate를 0.00으로 주는 경우가 있다.
+//    0은 '보합'이 아니라 '모름'에 가까우므로 호출부에서 걸러야 한다.
+export async function getIndexQuote(
+  key: "KOSPI" | "KOSDAQ" | "NASDAQ" | "S&P500",
+): Promise<IndexQuote | null> {
+  const domestic = key === "KOSPI" || key === "KOSDAQ";
+  const code = key === "NASDAQ" ? ".IXIC" : key === "S&P500" ? ".INX" : key;
+  const url = domestic
+    ? `https://polling.finance.naver.com/api/realtime/domestic/index/${code}`
+    : `https://polling.finance.naver.com/api/realtime/worldstock/index/${encodeURIComponent(code)}`;
+  const j = (await jget(url)) as { datas?: { fluctuationsRatio?: unknown }[] } | null;
+  const d = j?.datas?.[0];
+  if (!d) return null;
+  const rate = Number(String(d.fluctuationsRatio ?? "").replace(/,/g, ""));
+  if (!Number.isFinite(rate)) return null;
+  return { name: key, changeRate: rate };
+}
+
+/**
+ * 포트폴리오 진단용 종목 팩트 묶음.
+ * integration 한 번으로 지표·IR일정·컨센서스·수급을 모두 뽑는다(종목당 요청 1회).
+ * 전부 네이버가 준 실제 값이며, 해석은 하지 않는다.
+ */
+export interface HoldingFacts {
+  per: number | null;
+  forwardPer: number | null; // 추정PER (실적 전망 반영)
+  pbr: number | null;
+  dividendYield: number | null;
+  price: number | null;
+  high52: number | null;
+  low52: number | null;
+  /** 52주 구간에서 현재가 위치 (0=최저, 100=최고) */
+  pos52: number | null;
+  ir: { title: string; date: string; dday: number } | null;
+  targetPrice: number | null; // 증권사 목표주가 평균
+  recommMean: number | null; // 투자의견 평균 (1 매수 ~ 5 매도)
+  /** 목표주가 대비 괴리율 (%) — 양수면 목표가가 현재가보다 높다 */
+  targetGap: number | null;
+  /** 최근 5거래일 순매수 (주식 수) */
+  flow5d: { foreigner: number; organ: number; individual: number } | null;
+  reports: { title: string; broker: string; date: string }[];
+}
+
+function numOf(v: unknown): number | null {
+  if (v == null) return null;
+  const n = Number(String(v).replace(/[,%원배+\s]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+export async function getHoldingFacts(
+  symbol: string,
+  domestic: boolean,
+): Promise<HoldingFacts | null> {
+  // 해외 종목은 integration이 없어 기본 지표만 (basic 경유)
+  if (!domestic) {
+    const d = await getStockDetail(symbol, false);
+    if (!d) return null;
+    return {
+      per: d.per,
+      forwardPer: null,
+      pbr: d.pbr,
+      dividendYield: null,
+      price: null,
+      high52: null,
+      low52: null,
+      pos52: null,
+      ir: null,
+      targetPrice: null,
+      recommMean: null,
+      targetGap: null,
+      flow5d: null,
+      reports: [],
+    };
+  }
+
+  const j = (await jget(
+    `https://m.stock.naver.com/api/stock/${symbol}/integration`,
+  )) as Record<string, unknown> | null;
+  if (!j) return null;
+
+  const info: Record<string, string> = {};
+  for (const it of (j.totalInfos as { key?: string; value?: string }[]) ?? []) {
+    const k = String(it.key ?? "").trim();
+    if (k) info[k] = String(it.value ?? "").trim();
+  }
+
+  const price = numOf(info["전일"]);
+  const high52 = numOf(info["52주 최고"]);
+  const low52 = numOf(info["52주 최저"]);
+  const cons = j.consensusInfo as
+    | { priceTargetMean?: string; recommMean?: string }
+    | undefined;
+  const targetPrice = numOf(cons?.priceTargetMean);
+  const irRaw = j.irScheduleInfo as
+    | { title?: string; irScheduleDate?: string; irScheduleDday?: number }
+    | undefined;
+
+  // 수급은 최근 5거래일을 합산해야 하루치 노이즈에 휘둘리지 않는다
+  const trends = (Array.isArray(j.dealTrendInfos) ? j.dealTrendInfos : []).slice(0, 5) as Record<
+    string,
+    unknown
+  >[];
+  const sum = (k: string) =>
+    trends.reduce((s, t) => s + (numOf(t[k]) ?? 0), 0);
+  const flow5d = trends.length
+    ? {
+        foreigner: sum("foreignerPureBuyQuant"),
+        organ: sum("organPureBuyQuant"),
+        individual: sum("individualPureBuyQuant"),
+      }
+    : null;
+
+  return {
+    per: numOf(info["PER"]),
+    forwardPer: numOf(info["추정PER"]),
+    pbr: numOf(info["PBR"]),
+    dividendYield: numOf(info["배당수익률"]),
+    price,
+    high52,
+    low52,
+    pos52:
+      price != null && high52 != null && low52 != null && high52 > low52
+        ? ((price - low52) / (high52 - low52)) * 100
+        : null,
+    ir:
+      irRaw?.title && irRaw.irScheduleDate
+        ? {
+            title: String(irRaw.title),
+            date: String(irRaw.irScheduleDate),
+            dday: Number(irRaw.irScheduleDday ?? 0),
+          }
+        : null,
+    targetPrice,
+    recommMean: numOf(cons?.recommMean),
+    targetGap:
+      targetPrice != null && price != null && price > 0
+        ? ((targetPrice - price) / price) * 100
+        : null,
+    flow5d,
+    reports: (Array.isArray(j.researches) ? j.researches : [])
+      .slice(0, 2)
+      .map((r) => {
+        const o = r as Record<string, unknown>;
+        return {
+          title: String(o.tit ?? ""),
+          broker: String(o.bnm ?? ""),
+          date: String(o.wdt ?? ""),
+        };
+      })
+      .filter((r) => r.title),
+  };
+}
+
+/* ───────────────────────── 시장 개요(인베스팅닷컴식) ─────────────────────────
+   지수·거래량 상위·환율. 모두 네이버 실데이터이며, 실패한 항목은 조용히 빠진다. */
+
+export interface MarketRow {
+  name: string;
+  symbol: string; // 상세/차트 열기용 (없으면 빈 값)
+  price: string;
+  changeRate: number | null;
+  domestic: boolean;
+  currency: string;
+  market?: string; // 해외 거래소(NASDAQ/NYSE 등). 국내는 생략.
+}
+
+const INDEX_DEFS: { name: string; code: string; domestic: boolean }[] = [
+  { name: "코스피", code: "KOSPI", domestic: true },
+  { name: "코스닥", code: "KOSDAQ", domestic: true },
+  { name: "코스피200", code: "KPI200", domestic: true },
+  { name: "다우존스", code: ".DJI", domestic: false },
+  { name: "S&P 500", code: ".INX", domestic: false },
+  { name: "나스닥", code: ".IXIC", domestic: false },
+  { name: "닛케이225", code: ".N225", domestic: false },
+  { name: "상하이종합", code: ".SSEC", domestic: false },
+  { name: "홍콩H", code: ".HSI", domestic: false },
+  { name: "독일 DAX", code: ".GDAXI", domestic: false },
+];
+
+async function indexQuote(def: { name: string; code: string; domestic: boolean }): Promise<MarketRow | null> {
+  const kind = def.domestic ? "domestic" : "worldstock";
+  const j = (await jget(
+    `https://polling.finance.naver.com/api/realtime/${kind}/index/${encodeURIComponent(def.code)}`,
+  )) as { datas?: { closePrice?: string; fluctuationsRatio?: string }[] } | null;
+  const d = j?.datas?.[0];
+  if (!d?.closePrice) return null;
+  const rate = Number(String(d.fluctuationsRatio ?? "").replace(/,/g, ""));
+  return {
+    name: def.name,
+    symbol: def.code,
+    price: String(d.closePrice),
+    changeRate: Number.isFinite(rate) ? rate : null,
+    domestic: def.domestic,
+    currency: def.domestic ? "P" : "P",
+  };
+}
+
+/** 주요 지수 스냅샷 */
+export async function getIndices(): Promise<MarketRow[]> {
+  const out = await Promise.all(INDEX_DEFS.map((d) => indexQuote(d).catch(() => null)));
+  return out.filter((x): x is MarketRow => x != null);
+}
+
+const EXCHANGE_DEFS: { name: string; code: string }[] = [
+  { name: "미국 USD", code: "FX_USDKRW" },
+  { name: "일본 JPY(100엔)", code: "FX_JPYKRW" },
+  { name: "유럽연합 EUR", code: "FX_EURKRW" },
+  { name: "중국 CNY", code: "FX_CNYKRW" },
+  { name: "영국 GBP", code: "FX_GBPKRW" },
+  { name: "호주 AUD", code: "FX_AUDKRW" },
+];
+
+async function exchangeQuote(def: { name: string; code: string }): Promise<MarketRow | null> {
+  const j = (await jget(`https://api.stock.naver.com/marketindex/exchange/${def.code}`)) as {
+    exchangeInfo?: { closePrice?: string; fluctuationsRatio?: string; name?: string };
+  } | null;
+  const e = j?.exchangeInfo;
+  if (!e?.closePrice) return null;
+  const rate = Number(String(e.fluctuationsRatio ?? "").replace(/,/g, ""));
+  return {
+    name: def.name,
+    symbol: def.code,
+    price: String(e.closePrice),
+    changeRate: Number.isFinite(rate) ? rate : null,
+    domestic: true,
+    currency: "원",
+  };
+}
+
+/** 주요 환율(원화 기준) */
+export async function getExchangeRates(): Promise<MarketRow[]> {
+  const out = await Promise.all(EXCHANGE_DEFS.map((d) => exchangeQuote(d).catch(() => null)));
+  return out.filter((x): x is MarketRow => x != null);
+}
+
+/** 거래량 상위 (거래상위 페이지 스크랩, EUC-KR). sosok 0=코스피 1=코스닥 */
+export async function getVolumeLeaders(sosok: 0 | 1, limit = 20): Promise<MarketRow[]> {
+  try {
+    const r = await fetch(
+      `https://finance.naver.com/sise/sise_quant.naver?sosok=${sosok}`,
+      { headers: H },
+    );
+    if (!r.ok) return [];
+    const html = new TextDecoder("euc-kr").decode(await r.arrayBuffer());
+    const out: MarketRow[] = [];
+    // 한 덩어리 정규식은 취약하므로 종목 행(<tr>)마다 잘라서 파싱한다.
+    for (const row of html.split("<tr")) {
+      if (out.length >= limit) break;
+      const nameM = row.match(/code=([0-9A-Z]{6})["'][^>]*class="tltle"[^>]*>([^<]+)<\/a>/);
+      if (!nameM) continue;
+      const code = nameM[1];
+      const name = nameM[2].trim();
+      if (isNoise(name, code)) continue;
+      // 현재가 = 행에서 첫 번째 number td
+      const priceM = row.match(/<td class="number">([\d,]+)<\/td>/);
+      // 방향: bu_pup/bu_pflu=상승, bu_pdn/bu_pfln=하락
+      const up = /bu_p(up|flu)/.test(row);
+      // 등락률: % 앞의 숫자
+      const rateM = row.match(/([\d.]+)\s*%/);
+      const pct = rateM ? Number(rateM[1]) : NaN;
+      out.push({
+        name,
+        symbol: code,
+        price: priceM ? priceM[1] : "",
+        changeRate: Number.isFinite(pct) ? (up ? pct : -pct) : null,
+        domestic: true,
+        currency: "원",
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** 해외(미국) 거래량 상위. 네이버 모바일 월드스톡 front-api 실데이터.
+ *  stockPriceSortType=top → accumulatedTradingVolume 내림차순(거래량순, 실측 확인). */
+export async function getForeignVolumeLeaders(limit = 25): Promise<MarketRow[]> {
+  try {
+    const url =
+      "https://m.stock.naver.com/front-api/worldstock/nation/stock/list" +
+      `?stockNationType=USA&stockPriceSortType=top&page=1&pageSize=${limit}`;
+    const r = await fetch(url, {
+      headers: { ...H, Referer: "https://m.stock.naver.com/" },
+    });
+    if (!r.ok) return [];
+    const j = (await r.json()) as {
+      isSuccess?: boolean;
+      result?: {
+        stocks?: {
+          name?: string;
+          reutersCode?: string;
+          currentPrice?: number;
+          currencyType?: string;
+          fluctuationsType?: string; // RISING | FALLING | (보합)
+          fluctuationsRatio?: string; // 부호 없는/있는 문자열
+          stockExchangeType?: string; // NASDAQ | NYSE ...
+        }[];
+      };
+    };
+    if (!j.isSuccess || !j.result?.stocks) return [];
+    const out: MarketRow[] = [];
+    for (const s of j.result.stocks) {
+      const sym = (s.reutersCode ?? "").trim();
+      const name = (s.name ?? "").trim();
+      if (!sym || !name) continue;
+      // 등락률: 서버가 부호 없이 줄 수 있어 fluctuationsType으로 방향을 확정한다.
+      const raw = Number(String(s.fluctuationsRatio ?? "").replace(/[^0-9.-]/g, ""));
+      const mag = Number.isFinite(raw) ? Math.abs(raw) : NaN;
+      const changeRate = Number.isFinite(mag)
+        ? s.fluctuationsType === "FALLING"
+          ? -mag
+          : mag
+        : null;
+      const cp = s.currentPrice;
+      const price =
+        typeof cp === "number"
+          ? cp.toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "";
+      out.push({
+        name,
+        symbol: sym,
+        price,
+        changeRate,
+        domestic: false,
+        currency: s.currencyType === "USD" ? "USD" : (s.currencyType ?? ""),
+        market: s.stockExchangeType,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}

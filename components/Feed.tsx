@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { SOURCES, SOURCE_MAP, MIN_FOLLOW } from "@/lib/sources";
 import type { Article } from "@/lib/types";
 import type { User, Author, NewsItem } from "@/lib/community";
@@ -16,6 +22,7 @@ import LikedNews from "@/components/LikedNews";
 import HScroll from "@/components/HScroll";
 import CreditCoin from "@/components/CreditCoin";
 import EconCalendar from "@/components/EconCalendar";
+import LinkSummary from "@/components/LinkSummary";
 import AiChat from "@/components/AiChat";
 import { AI_MAP, type AiApp } from "@/lib/ai";
 import { getStoredTheme, applyTheme, type Theme } from "@/lib/theme";
@@ -89,9 +96,24 @@ export default function Feed({
   const topicRef = useRef<string | null>(null);
   const [translate] = useState(initialTranslate); // 피드 목록 번역 기본값 (리더에서 개별 전환)
   const [reader, setReader] = useState<Article | null>(null);
+  const [readerAutoAi, setReaderAutoAi] = useState(false);
+
+  // 목록의 'AI 요약' 칩 → 게스트면 로그인, 아니면 리더를 열며 자동 요약
+  const openWithAi = useCallback(
+    (a: Article) => {
+      if (isGuest) {
+        onRequireLogin();
+        return;
+      }
+      setReaderAutoAi(true);
+      setReader(a);
+    },
+    [isGuest, onRequireLogin],
+  );
   const [interests, setInterests] = useState<Interest[]>([]);
   const [interestSheet, setInterestSheet] = useState(false);
   const [calOpen, setCalOpen] = useState(false); // 경제 캘린더
+  const [linkOpen, setLinkOpen] = useState(false); // 유튜브·기사 링크 요약
   const [interestGnews, setInterestGnews] = useState<Article[] | null>(null);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [notifOpen, setNotifOpen] = useState(false);
@@ -601,6 +623,14 @@ export default function Feed({
               </svg>
             </span>
           </Chip>
+          <Chip active={linkOpen} onClick={() => setLinkOpen(true)} label="링크요약">
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-[#14c38e] to-[#18b6e6] text-white">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5" />
+                <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5" />
+              </svg>
+            </span>
+          </Chip>
 
           {/* 팔로우한 AI 앱 */}
           {aiFollowed
@@ -783,6 +813,7 @@ export default function Feed({
                 source={SOURCE_MAP[a.sourceId]}
                 translate={translate}
                 onRead={setReader}
+                onQuickSummary={openWithAi}
               />
             ))
           )
@@ -811,6 +842,7 @@ export default function Feed({
                 source={SOURCE_MAP[a.sourceId]}
                 translate={translate}
                 onRead={setReader}
+                onQuickSummary={openWithAi}
               />
             ))
           )
@@ -845,6 +877,7 @@ export default function Feed({
               source={SOURCE_MAP[a.sourceId]}
               translate={translate}
               onRead={setReader}
+              onQuickSummary={openWithAi}
             />
           ))
         )}
@@ -936,6 +969,15 @@ export default function Feed({
         />
       )}
 
+      {linkOpen && (
+        <LinkSummary
+          isGuest={isGuest}
+          onRequireLogin={onRequireLogin}
+          onSpend={refreshCredits}
+          onClose={() => setLinkOpen(false)}
+        />
+      )}
+
       {calOpen && (
         <EconCalendar
           isGuest={isGuest}
@@ -952,8 +994,12 @@ export default function Feed({
           translate={translate}
           user={user}
           isGuest={isGuest}
+          autoSummarize={readerAutoAi}
           onRequireLogin={onRequireLogin}
-          onClose={() => setReader(null)}
+          onClose={() => {
+            setReader(null);
+            setReaderAutoAi(false);
+          }}
         />
       )}
     </div>

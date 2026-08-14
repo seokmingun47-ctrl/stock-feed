@@ -61,7 +61,36 @@ export default function TermsPage() {
           않습니다.
         </Section>
 
-        <Section title="7. 약관의 변경">
+        <Section title="7. 유료 서비스 및 결제">
+          Pro 구독 등 유료 서비스는 결제 시점에 안내된 요금과 주기로 제공됩니다.
+          정기결제는 매 주기 자동으로 갱신되며, 이용자는 해지 시점 전까지 언제든
+          서비스 내에서 구독을 해지할 수 있습니다. 해지하면 다음 결제일부터 갱신이
+          중단되고, 이미 결제한 기간까지는 그대로 이용할 수 있습니다. 카드결제는
+          토스페이먼츠를 통해 처리됩니다.
+        </Section>
+
+        <Section id="refund" title="8. 청약철회 및 환불">
+          「전자상거래 등에서의 소비자보호에 관한 법률」에 따라 다음과 같이
+          청약철회·환불을 받을 수 있습니다.
+          <ul className="mt-2 list-disc space-y-1.5 pl-5">
+            <li>
+              결제 후 서비스(유료 기능·크레딧)를 <b>이용하지 않은 경우</b>, 결제일로부터
+              7일 이내에는 전액 환불됩니다.
+            </li>
+            <li>
+              구독 기간 중 해지하는 경우, 이미 제공된 기간에 대해서는 환불되지 않으며
+              다음 결제부터 갱신이 중단됩니다.
+            </li>
+            <li>
+              서비스 하자(장기간 정상 이용 불가 등)로 인한 환불은 관련 법령에 따라
+              처리합니다.
+            </li>
+          </ul>
+          환불 요청은 아래 고객센터 또는 이메일로 접수해 주세요. 접수 후 영업일
+          기준 3일 이내에 처리합니다.
+        </Section>
+
+        <Section title="9. 약관의 변경">
           약관은 필요 시 변경될 수 있으며, 변경 시 서비스 내 공지합니다. 변경 후
           서비스를 계속 이용하면 변경에 동의한 것으로 간주됩니다.
         </Section>
@@ -77,9 +106,17 @@ export default function TermsPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  id,
+}: {
+  title: string;
+  children: React.ReactNode;
+  id?: string;
+}) {
   return (
-    <section>
+    <section id={id} className={id ? "scroll-mt-20" : undefined}>
       <h2 className="mb-1.5 text-[16px] font-bold">{title}</h2>
       <div className="text-muted">{children}</div>
     </section>

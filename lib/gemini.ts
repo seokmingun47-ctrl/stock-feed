@@ -19,10 +19,15 @@ export async function geminiRace(
   apiKey: string,
   requestBody: string,
   models: string[] = RACE_MODELS,
+  // 유튜브 영상 이해처럼 오래 걸리는 작업은 기본 14초로는 반드시 타임아웃 난다.
+  timeoutMs: number = PER_CALL_MS,
+  // 실패 사유를 알아야 할 때 배열을 넘기면 모델별 에러가 담긴다.
+  // (예: 429 한도 초과인지, 단순 지연인지 구분해 사용자에게 정확히 안내)
+  errorsOut?: string[],
 ): Promise<string | null> {
   const call = async (model: string): Promise<string> => {
     const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), PER_CALL_MS);
+    const t = setTimeout(() => ac.abort(), timeoutMs);
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -33,7 +38,10 @@ export async function geminiRace(
           signal: ac.signal,
         },
       );
-      if (!res.ok) throw new Error(`status ${res.status}`);
+      if (!res.ok) {
+        errorsOut?.push(`${model}:${res.status}`);
+        throw new Error(`status ${res.status}`);
+      }
       const d = (await res.json()) as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       };

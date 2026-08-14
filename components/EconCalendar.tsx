@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { COUNTRY_KO } from "@/lib/econ";
+import { handleNoCredits } from "@/lib/nocredits";
 
 interface EconEvent {
   id: string;
@@ -330,7 +331,7 @@ function ExplainSheet({
         }),
       }).then((r) => r.json());
       if (d.ok) setExplain(d.explain);
-      else setErr(d.reason || "설명을 가져오지 못했어요.");
+      else if (!handleNoCredits(d)) setErr(d.reason || "설명을 가져오지 못했어요.");
       // 성공이든 크레딧 부족이든 잔액이 바뀌었을 수 있으니 헤더 표시 갱신
       refreshCredits?.();
     } catch {

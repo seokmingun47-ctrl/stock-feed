@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { handleNoCredits } from "@/lib/nocredits";
 import type { User } from "@/lib/community";
 import type { Article, Source } from "@/lib/types";
 import { SOURCE_MAP } from "@/lib/sources";
@@ -43,6 +44,28 @@ interface Candle {
   l: number;
   c: number;
   v: number;
+}
+
+interface DeepReport {
+  name: string;
+  price: string | null;
+  changeRate: number | null;
+  currency: string;
+  summary: string;
+  why: string[];
+  risks: string[];
+  valuation: {
+    per: string | null;
+    pbr: string | null;
+    targetPrice: string | null;
+    targetGap: number | null;
+    recommMean: string | null;
+    high52: string | null;
+    low52: string | null;
+    marketCap: string | null;
+    peers: { name: string; per: string | null; pbr: string | null }[];
+  };
+  sources: { n: number; title: string; link: string }[];
 }
 
 interface Analysis {
@@ -134,7 +157,7 @@ export default function StockDetail({
         }),
       }).then((r) => r.json());
       if (d.ok) setChartAi(d.analysis);
-      else setChartAiErr(d.reason || "분석에 실패했어요.");
+      else if (!handleNoCredits(d)) setChartAiErr(d.reason || "분석에 실패했어요.");
     } catch {
       setChartAiErr("네트워크 오류예요. 다시 시도해 주세요.");
     } finally {
@@ -143,7 +166,12 @@ export default function StockDetail({
   };
 
   // 급등락 사유
-  const [movReason, setMovReason] = useState<{ summary: string; points: string[] } | null>(null);
+  const [movReason, setMovReason] = useState<{
+    summary: string;
+    points: string[];
+    watch?: string[];
+  } | null>(null);
+  const [movCtx, setMovCtx] = useState<MoverCtx[]>([]);
   const [movNews, setMovNews] = useState<Article[]>([]);
   const [movBusy, setMovBusy] = useState(false);
   const [movErr, setMovErr] = useState("");
@@ -160,13 +188,18 @@ export default function StockDetail({
           name: stock.name,
           dir: moverMode,
           changeRate: q.changeRate ?? stock.changeRate ?? 0,
+          // 시세 지표(거래량·지수 대비 등)를 계산하려면 종목 식별자가 필요하다
+          symbol: stock.symbol,
+          domestic: stock.domestic,
+          market: stock.market,
         }),
       }).then((r) => r.json());
       if (!d.ok) {
-        setMovErr(d.reason || "분석에 실패했어요.");
+        if (!handleNoCredits(d)) setMovErr(d.reason || "분석에 실패했어요.");
         return;
       }
       setMovReason(d.reason);
+      setMovCtx(d.context ?? []);
       setMovNews(d.news ?? []);
     } catch {
       setMovErr("네트워크 오류예요. 다시 시도해 주세요.");
@@ -230,7 +263,7 @@ export default function StockDetail({
         }),
       }).then((r) => r.json());
       if (!d.ok) {
-        setValErr(d.reason || "분석에 실패했어요.");
+        if (!handleNoCredits(d)) setValErr(d.reason || "분석에 실패했어요.");
         return;
       }
       setValReason(d.reason);
@@ -294,6 +327,32 @@ export default function StockDetail({
     };
   }, [period, stock.symbol, stock.domestic]);
 
+  // 프로 전용 심층 리포트
+  const [deep, setDeep] = useState<DeepReport | null>(null);
+  const [deepLoading, setDeepLoading] = useState(false);
+  const [deepErr, setDeepErr] = useState("");
+  const runDeepReport = async () => {
+    if (deepLoading) return;
+    setDeepLoading(true);
+    setDeepErr("");
+    try {
+      const d = await fetch("/api/deep-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: stock.symbol, name: stock.name, domestic: stock.domestic }),
+      }).then((r) => r.json());
+      if (!d.ok) {
+        setDeepErr(d.reason || "리포트 생성에 실패했어요.");
+        return;
+      }
+      setDeep(d as DeepReport);
+    } catch {
+      setDeepErr("네트워크 오류예요. 다시 시도해 주세요.");
+    } finally {
+      setDeepLoading(false);
+    }
+  };
+
   const runAnalysis = async () => {
     if (analyzing) return;
     setAnalyzing(true);
@@ -312,7 +371,7 @@ export default function StockDetail({
       }).then((r) => r.json());
       if (d.news) setNews(d.news);
       if (!d.ok) {
-        setAiErr(d.reason || "분석에 실패했어요.");
+        if (!handleNoCredits(d)) setAiErr(d.reason || "분석에 실패했어요.");
         return;
       }
       setAnalysis(d.analysis);
@@ -548,6 +607,7 @@ export default function StockDetail({
                     reason={movReason}
                     dir={moverMode}
                     news={movNews}
+                    context={movCtx}
                     onOpenNews={setReader}
                   />
                 )}
@@ -647,6 +707,52 @@ export default function StockDetail({
               </div>
             </div>
           )}
+
+          {/* 심층 리포트 (프로 전용) */}
+          <div className="mt-6 px-4 pb-2">
+            {!deep && !deepLoading && !deepErr && (
+              user.isPro ? (
+                <button
+                  onClick={runDeepReport}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent to-[#7a5cf0] py-3.5 text-[15px] font-bold text-white"
+                >
+                  AI 심층 리포트 · 뉴스·밸류에이션·리스크
+                </button>
+              ) : (
+                <a
+                  href="/pricing"
+                  className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13.5px] font-bold text-text">AI 심층 리포트</div>
+                    <div className="text-[12px] text-muted">
+                      뉴스·밸류에이션·리스크를 한 편의 리포트로. 프로 전용.
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white">
+                    프로
+                  </span>
+                </a>
+              )
+            )}
+            {deepLoading && (
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-bg-soft py-8">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" className="spin">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                </svg>
+                <p className="text-[13px] text-muted">{stock.name} 뉴스·지표 종합 분석 중…</p>
+              </div>
+            )}
+            {deepErr && !deepLoading && (
+              <div className="rounded-xl border border-border bg-bg-soft p-4 text-center">
+                <p className="text-[13px] text-[var(--down)]">{deepErr}</p>
+                <button onClick={runDeepReport} className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[13px] font-bold text-white">
+                  다시 시도
+                </button>
+              </div>
+            )}
+            {deep && <DeepReportCard r={deep} />}
+          </div>
         </div>
       </div>
 
@@ -659,6 +765,108 @@ export default function StockDetail({
           onClose={() => setReader(null)}
         />
       )}
+    </div>
+  );
+}
+
+// 프로 심층 리포트 카드 — 숫자는 서버(실데이터), AI는 설명만 + [뉴스N] 인용
+function DeepReportCard({ r }: { r: DeepReport }) {
+  const v = r.valuation;
+  const rows: [string, string][] = [];
+  if (r.price) rows.push(["현재가", `${r.price}${r.currency === "KRW" ? "원" : ""}`]);
+  if (v.targetPrice)
+    rows.push([
+      "목표주가(평균)",
+      `${v.targetPrice}${v.targetGap != null ? ` (${v.targetGap > 0 ? "+" : ""}${v.targetGap}%)` : ""}`,
+    ]);
+  if (v.recommMean) rows.push(["투자의견 평균", `${v.recommMean} (1강력매수~5강력매도)`]);
+  if (v.per) rows.push(["PER", v.per]);
+  if (v.pbr) rows.push(["PBR", v.pbr]);
+  if (v.high52 && v.low52) rows.push(["52주 범위", `${v.low52} ~ ${v.high52}`]);
+  if (v.marketCap) rows.push(["시가총액", v.marketCap]);
+
+  return (
+    <div className="rounded-2xl border border-border bg-bg-soft p-4">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[15px] font-extrabold text-text">{r.name} 심층 리포트</h3>
+      </div>
+
+      <p className="mt-2.5 text-[14px] leading-relaxed text-text/90">{r.summary}</p>
+
+      {r.why.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-1.5 text-[12.5px] font-bold text-muted">최근 왜 움직였나</h4>
+          <ul className="space-y-1.5">
+            {r.why.map((w, i) => (
+              <li key={i} className="flex gap-2 text-[13.5px] leading-relaxed text-text/90">
+                <span className="text-accent">•</span>
+                <span>{w}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-1.5 text-[12.5px] font-bold text-muted">밸류에이션</h4>
+          <div className="overflow-hidden rounded-xl border border-border">
+            {rows.map(([k, val], i) => (
+              <div
+                key={k}
+                className={`flex items-center justify-between px-3 py-2 text-[13px] ${
+                  i % 2 ? "bg-bg" : "bg-card"
+                }`}
+              >
+                <span className="text-muted">{k}</span>
+                <span className="font-bold text-text">{val}</span>
+              </div>
+            ))}
+          </div>
+          {v.peers.length > 0 && (
+            <p className="mt-2 text-[12px] text-muted">
+              동종업계 PER — {v.peers.map((p) => `${p.name} ${p.per ?? "?"}`).join(" · ")}
+            </p>
+          )}
+        </div>
+      )}
+
+      {r.risks.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-1.5 text-[12.5px] font-bold text-muted">리스크</h4>
+          <ul className="space-y-1.5">
+            {r.risks.map((w, i) => (
+              <li key={i} className="flex gap-2 text-[13.5px] leading-relaxed text-text/90">
+                <span className="text-[var(--down)]">•</span>
+                <span>{w}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {r.sources.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-1.5 text-[12.5px] font-bold text-muted">근거 뉴스</h4>
+          <div className="space-y-1">
+            {r.sources.map((s) => (
+              <a
+                key={s.n}
+                href={s.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-[12px] leading-snug text-muted hover:text-text"
+              >
+                [뉴스{s.n}] {s.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="mt-4 text-[11px] leading-relaxed text-muted">
+        실제 시세·뉴스 기반 정보 제공이며 투자 권유가 아닙니다. 투자 판단과 책임은 이용자 본인에게 있습니다.
+      </p>
     </div>
   );
 }
@@ -749,19 +957,53 @@ function ChartAnalysisCard({
 }
 
 // 급등/급락 사유 — 실제 뉴스 근거만
+interface MoverCtx {
+  label: string;
+  value: string;
+  hint?: string;
+}
+
 function MoverReasonCard({
   reason,
   dir,
   news,
+  context,
   onOpenNews,
 }: {
-  reason: { summary: string; points: string[] };
+  reason: { summary: string; points: string[]; watch?: string[] };
   dir: "up" | "down";
   news?: Article[];
+  context?: MoverCtx[];
   onOpenNews?: (a: Article) => void;
 }) {
   const color = dir === "up" ? UP : DOWN;
   const title = dir === "up" ? "급등 사유" : "급락 사유";
+  const ctx = context ?? [];
+  const watch = reason.watch ?? [];
+
+  // "…[뉴스2]" → 해당 기사 버튼으로 (근거를 직접 눌러 확인할 수 있게)
+  const renderCited = (p: string, i: number) => {
+    const m = p.match(/\[뉴스\s*(\d+)\]/);
+    const idx = m ? Number(m[1]) - 1 : -1;
+    const art = news && idx >= 0 ? news[idx] : undefined;
+    return (
+      <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
+        <span style={{ color }}>•</span>
+        <span>
+          {p.replace(/\s*\[뉴스\s*\d+\]\s*/g, " ").trim()}
+          {art && (
+            <button
+              onClick={() => onOpenNews?.(art)}
+              className="ml-1 whitespace-nowrap rounded bg-accent/15 px-1.5 py-px align-middle text-[10.5px] font-bold text-accent hover:bg-accent/25"
+            >
+              근거 기사 ↗
+            </button>
+          )}
+        </span>
+      </li>
+    );
+  };
+
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-bg-soft">
       <div className="border-b border-border p-4">
@@ -772,37 +1014,67 @@ function MoverReasonCard({
           <p className="mt-1.5 text-[14px] leading-relaxed text-text">{reason.summary}</p>
         )}
       </div>
+
+      {/* 계산으로 나온 사실 — AI를 거치지 않으므로 항상 정확하다 */}
+      {ctx.length > 0 && (
+        <div className="border-b border-border p-4">
+          <div className="mb-2 text-[11.5px] font-bold text-muted">
+            오늘의 시세 지표 <span className="font-normal">· 계산값</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {ctx.map((c) => (
+              <div key={c.label} className="rounded-xl bg-bg p-2.5">
+                <div className="text-[10.5px] text-muted">{c.label}</div>
+                <div className="mt-0.5 text-[15px] font-extrabold" style={{ color }}>
+                  {c.value}
+                </div>
+                {c.hint && (
+                  <div className="mt-0.5 text-[10.5px] leading-snug text-muted">{c.hint}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {reason.points.length > 0 ? (
-        <ul className="space-y-2 p-4">
-          {reason.points.map((p, i) => {
-            const m = p.match(/\[뉴스\s*(\d+)\]/);
-            const idx = m ? Number(m[1]) - 1 : -1;
-            const art = news && idx >= 0 ? news[idx] : undefined;
-            return (
-              <li key={i} className="flex gap-1.5 text-[13.5px] leading-snug text-text">
-                <span style={{ color }}>•</span>
-                <span>
-                  {p.replace(/\s*\[뉴스\s*\d+\]\s*$/, "")}
-                  {art && (
-                    <button
-                      onClick={() => onOpenNews?.(art)}
-                      className="ml-1 whitespace-nowrap rounded bg-accent/15 px-1.5 py-px align-middle text-[10.5px] font-bold text-accent hover:bg-accent/25"
-                    >
-                      근거 기사 ↗
-                    </button>
-                  )}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <ul className="space-y-2 p-4">{reason.points.map(renderCited)}</ul>
       ) : (
         <p className="px-4 py-3 text-[12.5px] leading-relaxed text-muted">
           관련 뉴스에서 뚜렷한 사유를 찾지 못했어요. <b className="text-text">추측으로 채우지 않습니다.</b>
+          {ctx.length > 0 && " 위 시세 지표는 실제 관측된 수치예요."}
         </p>
       )}
+
+      {watch.length > 0 && (
+        <div className="border-t border-border p-4">
+          <div className="mb-2 text-[11.5px] font-bold text-muted">
+            앞으로 확인할 것 <span className="font-normal">· 뉴스에 언급된 일정</span>
+          </div>
+          <ul className="space-y-2">{watch.map(renderCited)}</ul>
+        </div>
+      )}
+
+      {news && news.length > 0 && (
+        <div className="border-t border-border p-4">
+          <div className="mb-2 text-[11.5px] font-bold text-muted">참고한 뉴스 {news.length}건</div>
+          <div className="space-y-1.5">
+            {news.slice(0, 5).map((a, i) => (
+              <button
+                key={a.link || i}
+                onClick={() => onOpenNews?.(a)}
+                className="block w-full text-left text-[12.5px] leading-snug text-muted hover:text-text"
+              >
+                <span className="mr-1 font-bold text-accent">{i + 1}</span>
+                {a.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="bg-bg px-4 py-2.5 text-[11px] leading-relaxed text-muted">
-        ※ 보도된 뉴스만 근거로 정리했어요. 주가 변동 원인은 복합적일 수 있고, 투자 권유가 아닙니다.
+        ※ 보도된 뉴스와 시세 계산값만 근거로 정리했어요. 주가 변동 원인은 복합적일 수 있고, 투자 권유가 아닙니다.
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export interface Candle {
   d: string;
@@ -15,6 +15,37 @@ export interface Prediction {
   trend: string; // 상승 | 하락 | 횡보
 }
 type Tool = "none" | "trend" | "hline";
+// 봉 종류. 렌코·카기·P&F 같은 비시간축 변형은 리테일 사용이 드물어 제외하고,
+// 실용적인 5종만 지원한다.
+type ChartType = "candle" | "hollow" | "heikin" | "line" | "area";
+const CHART_TYPES: { id: ChartType; label: string }[] = [
+  { id: "candle", label: "캔들" },
+  { id: "hollow", label: "할로우 캔들" },
+  { id: "heikin", label: "하이킨 아시" },
+  { id: "line", label: "라인" },
+  { id: "area", label: "영역" },
+];
+
+// 하이킨 아시: 노이즈를 줄여 추세를 부드럽게 보여주는 변형 캔들.
+//   HA종가 = (O+H+L+C)/4,  HA시가 = (앞 HA시가 + 앞 HA종가)/2
+//   HA고가 = max(H, HA시,HA종),  HA저가 = min(L, HA시,HA종)
+function toHeikin(src: Candle[]): Candle[] {
+  const out: Candle[] = [];
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    const close = (c.o + c.h + c.l + c.c) / 4;
+    const open = i === 0 ? (c.o + c.c) / 2 : (out[i - 1].o + out[i - 1].c) / 2;
+    out.push({
+      d: c.d,
+      o: open,
+      c: close,
+      h: Math.max(c.h, open, close),
+      l: Math.min(c.l, open, close),
+      v: c.v,
+    });
+  }
+  return out;
+}
 // 드로잉은 '데이터 좌표'로 저장한다 (x=캔들 인덱스, y=가격).
 // 화면 좌표로 저장하면 확대/이동할 때 선이 따로 논다.
 interface Line {
@@ -75,10 +106,31 @@ export default function ProChart({
   }));
   const [tool, setTool] = useState<Tool>("none");
   const [showMa, setShowMa] = useState(true);
+  const [chartType, setChartType] = useState<ChartType>("candle");
+  const [typeOpen, setTypeOpen] = useState(false);
+  // 크로스헤어 — 차트 위에서 손/마우스를 움직이면 그 지점의 날짜·가격을 표시
+  const [hover, setHover] = useState<number | null>(null); // view 배열 기준 인덱스
   const [lines, setLines] = useState<Line[]>([]);
   const [draft, setDraft] = useState<Line | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ x: number; s: number; e: number } | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  // 두 손가락(핀치) 줌 — 활성 포인터와 시작 시점의 벌어진 거리를 기억한다
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinch = useRef<{ dist: number; s: number; e: number; anchor: number } | null>(null);
+
+  // 전체화면일 때 뒤 스크롤 잠그고, 뒤로가기/ESC로 닫히게
+  useEffect(() => {
+    if (!fullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFullscreen(false);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [fullscreen]);
 
   const W = 720;
   const priceTop = 6;
@@ -101,6 +153,22 @@ export default function ProChart({
     return all.slice(s, e);
   }, [all, range, N]);
 
+  // 하이킨 아시는 전체 시계열로 계산한 뒤 보이는 구간만 잘라야 값이 맞다.
+  const heikinAll = useMemo(
+    () => (chartType === "heikin" ? toHeikin(all) : null),
+    [all, chartType],
+  );
+
+  // 실제 렌더에 쓰는 봉 — 하이킨이면 변형본, 아니면 원본
+  const bars = useMemo(() => {
+    if (chartType === "heikin" && heikinAll) {
+      const s = Math.max(0, Math.min(range.s, N - 5));
+      const e = Math.max(s + 5, Math.min(range.e, N));
+      return heikinAll.slice(s, e);
+    }
+    return view;
+  }, [chartType, heikinAll, view, range, N]);
+
   // 보이는 구간의 이동평균 (null = 아직 기간이 안 찬 구간)
   const maView = useMemo(() => {
     const s = Math.max(0, Math.min(range.s, N - 5));
@@ -115,8 +183,8 @@ export default function ProChart({
   const bodyW = Math.max(1, Math.min(step * 0.66, 14));
 
   const { pMin, pMax } = useMemo(() => {
-    const highs = view.map((c) => c.h);
-    const lows = view.map((c) => c.l);
+    const highs = bars.map((c) => c.h);
+    const lows = bars.map((c) => c.l);
     let hi = Math.max(...highs);
     let lo = Math.min(...lows);
     // 이동평균선이 화면 밖으로 잘리지 않게 범위에 포함
@@ -136,7 +204,7 @@ export default function ProChart({
     }
     const pad = (hi - lo) * 0.06 || hi * 0.02 || 1;
     return { pMin: lo - pad, pMax: hi + pad };
-  }, [view, prediction, showMa, maView]);
+  }, [bars, prediction, showMa, maView]);
 
   const volMax = Math.max(...view.map((c) => c.v), 1);
   const yP = useCallback(
@@ -183,6 +251,23 @@ export default function ProChart({
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // 손가락 두 개 = 핀치 시작. 그리기/드래그는 취소하고 확대 모드로.
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      const el = svgRef.current;
+      const r = el?.getBoundingClientRect();
+      const mid = (a.x + b.x) / 2;
+      pinch.current = {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        s: range.s,
+        e: range.e,
+        anchor: r ? (mid - r.left) / r.width : 0.5,
+      };
+      drag.current = null;
+      setDraft(null);
+      return;
+    }
     if (tool === "none") {
       drag.current = { x: e.clientX, s: range.s, e: range.e };
       return;
@@ -193,6 +278,22 @@ export default function ProChart({
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (pointers.current.has(e.pointerId)) {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    // 핀치 확대: 두 손가락이 벌어진 비율만큼 보이는 구간을 줄인다
+    if (pinch.current && pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (dist > 0 && pinch.current.dist > 0) {
+        const len0 = pinch.current.e - pinch.current.s;
+        const next = Math.max(10, Math.min(N, Math.round(len0 * (pinch.current.dist / dist))));
+        let s = Math.round(pinch.current.s + len0 * pinch.current.anchor - next * pinch.current.anchor);
+        s = Math.max(0, Math.min(s, N - next));
+        setRange({ s, e: s + next });
+      }
+      return;
+    }
     if (drag.current) {
       const el = svgRef.current;
       const r = el?.getBoundingClientRect();
@@ -204,7 +305,17 @@ export default function ProChart({
       setRange({ s, e: s + len });
       return;
     }
-    if (!draft) return;
+    // 크로스헤어: 드래그·그리기 중이 아니면 가장 가까운 봉을 짚어 날짜·가격 표시
+    if (!draft) {
+      const el = svgRef.current;
+      const r = el?.getBoundingClientRect();
+      if (r) {
+        const sx = ((e.clientX - r.left) / r.width) * W;
+        const idx = Math.round((sx - padL) / step - 0.5);
+        setHover(idx >= 0 && idx < n ? idx : null);
+      }
+      return;
+    }
     const p = toData(e.clientX, e.clientY);
     if (!p) return;
     setDraft((d) =>
@@ -212,7 +323,9 @@ export default function ProChart({
     );
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = (e?: React.PointerEvent) => {
+    if (e) pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
     drag.current = null;
     if (draft) {
       // 점만 찍은 건 무시
@@ -248,7 +361,13 @@ export default function ProChart({
   const visibleLines = [...lines, ...(draft ? [draft] : [])];
 
   return (
-    <div className="select-none">
+    <div
+      className={
+        fullscreen
+          ? "fixed inset-0 z-[90] flex flex-col justify-center overflow-hidden bg-bg px-3 py-3 select-none"
+          : "select-none"
+      }
+    >
       {/* 도구 모음 */}
       <div className="mb-1.5 flex items-center gap-1 px-1">
         {(
@@ -273,6 +392,40 @@ export default function ProChart({
           </button>
         ))}
         <div className="ml-auto flex items-center gap-1">
+          {/* 봉 종류 선택 */}
+          <div className="relative">
+            <button
+              onClick={() => setTypeOpen((v) => !v)}
+              title="봉 종류"
+              className="flex h-8 items-center gap-1 rounded-lg bg-bg-soft px-2 text-[11.5px] font-bold text-muted"
+            >
+              {CHART_TYPES.find((t) => t.id === chartType)?.label}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {typeOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setTypeOpen(false)} />
+                <div className="absolute right-0 top-9 z-20 w-32 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                  {CHART_TYPES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        setChartType(t.id);
+                        setTypeOpen(false);
+                      }}
+                      className={`block w-full px-3 py-2 text-left text-[12.5px] font-semibold transition-colors hover:bg-bg-soft ${
+                        chartType === t.id ? "text-accent" : "text-text"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={() => setShowMa((v) => !v)}
             title="이동평균선"
@@ -295,6 +448,21 @@ export default function ProChart({
               </svg>
             </button>
           )}
+          <button
+            onClick={() => setFullscreen((v) => !v)}
+            title={fullscreen ? "전체화면 닫기" : "전체화면"}
+            className="grid h-8 w-8 place-items-center rounded-lg bg-bg-soft text-muted"
+          >
+            {fullscreen ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 3v6H3M21 9h-6V3M3 15h6v6M15 21v-6h6" />
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" />
+              </svg>
+            )}
+          </button>
         </div>
       </div>
 
@@ -319,13 +487,18 @@ export default function ProChart({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${volTop + volH}`}
-        className="w-full touch-none"
+        preserveAspectRatio="xMidYMid meet"
+        className={fullscreen ? "mx-auto h-full max-h-full w-full touch-none" : "w-full touch-none"}
         style={{ cursor: tool === "none" ? "grab" : "crosshair" }}
         onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
+        onPointerLeave={(e) => {
+          setHover(null);
+          onPointerUp(e);
+        }}
+        onPointerCancel={onPointerUp}
       >
         {/* 가격 눈금 */}
         {ticks.map((t, i) => (
@@ -381,30 +554,65 @@ export default function ProChart({
             ));
           })}
 
-        {/* 캔들 */}
-        {view.map((c, i) => {
+        {/* 거래량 막대 (봉 종류와 무관하게 항상 표시) */}
+        {bars.map((c, i) => {
           const up = c.c >= c.o;
-          const col = up ? UP : DOWN;
-          const x = cx(i);
-          const yO = yP(c.o);
-          const yC = yP(c.c);
-          const top = Math.min(yO, yC);
-          const h = Math.max(Math.abs(yC - yO), 1);
           return (
-            <g key={c.d}>
-              <line x1={x} y1={yP(c.h)} x2={x} y2={yP(c.l)} stroke={col} strokeWidth="1" />
-              <rect x={x - bodyW / 2} y={top} width={bodyW} height={h} fill={col} />
-              <rect
-                x={x - bodyW / 2}
-                y={volTop + volH - (c.v / volMax) * volH}
-                width={bodyW}
-                height={(c.v / volMax) * volH}
-                fill={col}
-                opacity="0.45"
-              />
-            </g>
+            <rect
+              key={`v${c.d}`}
+              x={cx(i) - bodyW / 2}
+              y={volTop + volH - (c.v / volMax) * volH}
+              width={bodyW}
+              height={(c.v / volMax) * volH}
+              fill={up ? UP : DOWN}
+              opacity="0.4"
+            />
           );
         })}
+
+        {/* 가격: 라인·영역이면 종가 선/면, 아니면 캔들 */}
+        {chartType === "line" || chartType === "area" ? (
+          (() => {
+            const pts = bars.map((c, i) => `${cx(i).toFixed(1)},${yP(c.c).toFixed(1)}`);
+            const line = pts.join(" ");
+            const area =
+              `${cx(0).toFixed(1)},${(priceTop + priceH).toFixed(1)} ` +
+              line +
+              ` ${cx(bars.length - 1).toFixed(1)},${(priceTop + priceH).toFixed(1)}`;
+            return (
+              <g>
+                {chartType === "area" && (
+                  <polygon points={area} fill="var(--accent)" opacity="0.12" />
+                )}
+                <polyline points={line} fill="none" stroke="var(--accent)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+              </g>
+            );
+          })()
+        ) : (
+          bars.map((c, i) => {
+            const up = c.c >= c.o;
+            const col = up ? UP : DOWN;
+            const x = cx(i);
+            const top = Math.min(yP(c.o), yP(c.c));
+            const h = Math.max(Math.abs(yP(c.c) - yP(c.o)), 1);
+            // 할로우 캔들: 상승봉은 속을 비운다(테두리만)
+            const hollow = chartType === "hollow" && up;
+            return (
+              <g key={c.d}>
+                <line x1={x} y1={yP(c.h)} x2={x} y2={yP(c.l)} stroke={col} strokeWidth="1" />
+                <rect
+                  x={x - bodyW / 2}
+                  y={top}
+                  width={bodyW}
+                  height={h}
+                  fill={hollow ? "none" : col}
+                  stroke={col}
+                  strokeWidth={hollow ? 1 : 0}
+                />
+              </g>
+            );
+          })
+        )}
 
         {/* 현재가 라인 */}
         {last && (
@@ -435,12 +643,58 @@ export default function ProChart({
             )}
           </g>
         ))}
+
+        {/* 크로스헤어 — 손/마우스로 짚은 봉의 날짜·종가 표시 */}
+        {hover != null && bars[hover] && (() => {
+          const c = bars[hover];
+          const x = cx(hover);
+          const yc = yP(c.c);
+          const dateLabel = `${c.d.slice(0, 4)}.${c.d.slice(4, 6)}.${c.d.slice(6, 8)}`;
+          const boxW = 62;
+          const bx = Math.max(padL, Math.min(x - boxW / 2, W - padR - boxW));
+          return (
+            <g pointerEvents="none">
+              <line x1={x} y1={priceTop} x2={x} y2={volTop + volH} stroke="var(--muted)" strokeWidth="0.7" strokeDasharray="3 3" />
+              <line x1={padL} y1={yc} x2={W - padR} y2={yc} stroke="var(--muted)" strokeWidth="0.7" strokeDasharray="3 3" />
+              {/* 가격 라벨(오른쪽) */}
+              <rect x={W - padR + 1} y={yc - 7} width={padR - 3} height={14} rx="3" fill="var(--text)" />
+              <text x={W - padR + 4} y={yc + 3.5} fontSize="9.5" fill="var(--bg)" fontWeight="700">
+                {fmt(c.c)}
+              </text>
+              {/* 날짜 라벨(하단) */}
+              <rect x={bx} y={volTop + volH - 15} width={boxW} height={14} rx="3" fill="var(--text)" />
+              <text x={bx + boxW / 2} y={volTop + volH - 5} fontSize="8.5" fill="var(--bg)" fontWeight="700" textAnchor="middle">
+                {dateLabel}
+              </text>
+            </g>
+          );
+        })()}
       </svg>
+
+      {/* 짚은 봉의 OHLC — 크로스헤어 이동 시 상단에 시가/고가/저가/종가 */}
+      {hover != null && bars[hover] && (
+        <div className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 px-1 text-[10.5px] text-muted">
+          {(
+            [
+              ["시", bars[hover].o],
+              ["고", bars[hover].h],
+              ["저", bars[hover].l],
+              ["종", bars[hover].c],
+            ] as [string, number][]
+          ).map(([k, v]) => (
+            <span key={k}>
+              {k} <b className="text-text">{fmt(v)}</b>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mt-1 flex items-center justify-between px-1 text-[10.5px] text-muted">
         <span>{view[0]?.d.slice(4, 6)}/{view[0]?.d.slice(6, 8)}</span>
         <span>
-          {tool === "none" ? "드래그로 이동 · 휠로 확대" : "차트를 드래그해 선을 그으세요"}
+          {tool === "none"
+            ? "드래그 이동 · 휠·두 손가락으로 확대"
+            : "차트를 드래그해 선을 그으세요"}
           {" · "}
           {n}봉
         </span>

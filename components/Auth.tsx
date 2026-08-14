@@ -1,27 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { SOURCE_MAP } from "@/lib/sources";
+import { useEffect, useState } from "react";
 import type { User } from "@/lib/community";
-import SourceAvatar from "@/components/SourceAvatar";
 import { LogoMark } from "@/components/Logo";
 
-const PREVIEW: { id: string; text: string; trend?: "up" | "down" }[] = [
-  { id: "hankyung", text: "코스피 2,800 돌파…외국인 순매수 행진", trend: "up" },
-  { id: "bloomberg", text: "Fed, 금리 동결 시사…나스닥 사상 최고치 마감", trend: "up" },
-  { id: "yna", text: "삼성전자 신고가 경신, 반도체 슈퍼사이클 기대감" },
-  { id: "cnbc", text: "엔비디아 시총 4조 달러 첫 돌파", trend: "up" },
-  { id: "edaily", text: "2차전지株 급등…개인 매수세 집중", trend: "up" },
-  { id: "ft", text: "유가 급락에 정유주 약세 전환", trend: "down" },
-  { id: "chosunbiz", text: "비트코인 1억 재돌파, 코인 관련주 강세" },
-  { id: "fnnews", text: "외국인·기관 동반 매수에 증시 훈풍" },
-  { id: "nasdaq", text: "테슬라, 로보택시 기대에 7% 급등", trend: "up" },
-  { id: "marketwatch", text: "S&P500 4거래일 연속 상승 마감", trend: "up" },
-  { id: "seekingalpha", text: "고배당 ETF로 자금 유입…배당주 재평가" },
-  { id: "yahoo", text: "애플, 신제품 공개 앞두고 강세", trend: "up" },
-  { id: "fool", text: "AI 반도체株 일제히 신고가 경신", trend: "up" },
-  { id: "businessinsider", text: "원/달러 환율 하락에 수출주 반등", trend: "down" },
-];
+// 구글 콜백이 실패하고 돌아올 때 붙는 코드 → 사람이 읽을 문장으로
+const OAUTH_ERRORS: Record<string, string> = {
+  google_off: "구글 로그인이 아직 설정되지 않았어요.",
+  canceled: "구글 로그인을 취소했어요.",
+  state: "보안 확인에 실패했어요. 다시 시도해 주세요.",
+  token: "구글 인증에 실패했어요. 다시 시도해 주세요.",
+  userinfo: "구글 계정 정보를 받지 못했어요.",
+  email: "이메일이 확인되지 않은 구글 계정이에요.",
+  create: "계정을 만들지 못했어요.",
+  network: "네트워크 오류예요. 다시 시도해 주세요.",
+  no_db: "서버 설정 문제로 로그인할 수 없어요.",
+};
 
 export default function Auth({
   onAuth,
@@ -31,11 +25,27 @@ export default function Auth({
   onClose?: () => void; // 게스트가 기능을 누를 때 오버레이로 뜨는 경우
 }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [showForm, setShowForm] = useState(false); // 아이디 방식은 접어둔다
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  // 구글 콜백이 ?err=... 로 돌려보낸 실패 사유 표시
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const code = p.get("err");
+      if (!code) return;
+      setErr(OAUTH_ERRORS[code] || "로그인에 실패했어요.");
+      p.delete("err");
+      const q = p.toString();
+      window.history.replaceState({}, "", window.location.pathname + (q ? `?${q}` : ""));
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   const canSubmit =
     mode === "login"
@@ -70,19 +80,16 @@ export default function Auth({
     }
   };
 
-  const colA = PREVIEW.filter((_, i) => i % 2 === 0);
-  const colB = PREVIEW.filter((_, i) => i % 2 === 1);
+  const input =
+    "w-full rounded-xl border border-[#e2e7ef] bg-white px-4 py-3.5 text-[16px] text-[#111725] outline-none transition-colors placeholder:text-[#a3adbd] focus:border-[#5b54f0]";
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-br from-white via-[#fdf2f8] to-[#ece9fe]">
-      <div className="pointer-events-none absolute -right-32 top-1/4 h-96 w-96 rounded-full bg-indigo-300/30 blur-3xl" />
-      <div className="pointer-events-none absolute -left-24 bottom-0 h-80 w-80 rounded-full bg-pink-300/30 blur-3xl" />
-
+    <div className="min-h-screen bg-white px-5 py-6 text-[#111725]">
       {onClose && (
         <button
           onClick={onClose}
           aria-label="닫기"
-          className="absolute right-4 top-4 z-20 grid h-10 w-10 place-items-center rounded-full bg-white/70 text-slate-600 shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-slate-900"
+          className="grid h-10 w-10 place-items-center rounded-full text-[#5f6b7d] transition-colors hover:bg-[#f1f4f9]"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 6 6 18M6 6l12 12" />
@@ -90,151 +97,142 @@ export default function Auth({
         </button>
       )}
 
-      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col md:grid md:grid-cols-2">
-        {/* 브랜딩 + 인증 폼 */}
-        <div className="flex flex-col justify-start px-7 pb-6 pt-12 sm:px-12 md:justify-center md:py-14">
-          <div className="mb-8 flex items-center gap-2.5">
-            <LogoMark size={40} />
-            <span className="text-[25px] font-extrabold tracking-tight">
-              <span className="text-zinc-900">New</span>
-              <span className="text-indigo-600">sync</span>
-            </span>
+      <div className="mx-auto flex min-h-[78vh] max-w-[400px] flex-col justify-center">
+        <div className="mb-8 text-center">
+          <div className="mb-5 flex justify-center">
+            <LogoMark size={52} />
           </div>
-
-          <h1 className="text-[34px] font-extrabold leading-[1.05] tracking-tight text-zinc-900 sm:text-[46px]">
-            당신의 증시.
-            <br />
-            당신의 피드.
+          <h1 className="text-[26px] font-extrabold leading-snug tracking-tight">
+            증권 뉴스를 한 곳에서
           </h1>
-
-          {/* 로그인 / 회원가입 토글 */}
-          <div className="mt-7 inline-flex w-full max-w-sm rounded-full bg-zinc-100 p-1">
-            {(
-              [
-                ["login", "로그인"],
-                ["signup", "회원가입"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => {
-                  setMode(key);
-                  setErr("");
-                }}
-                className={`flex-1 rounded-full py-2 text-[14px] font-bold transition-colors ${
-                  mode === key ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <form onSubmit={submit} className="mt-3 w-full max-w-sm">
-            {mode === "signup" && (
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                maxLength={120}
-                autoComplete="email"
-                placeholder="이메일 (예: name@gmail.com)"
-                className="mb-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-[16px] text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              />
-            )}
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              maxLength={mode === "login" ? 120 : 20}
-              autoComplete="username"
-              placeholder={mode === "login" ? "아이디 또는 이메일" : "아이디 (닉네임)"}
-              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-[16px] text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            />
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              maxLength={100}
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              placeholder="비밀번호"
-              className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-[16px] text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            />
-            {err && <p className="mt-2 text-[13px] font-medium text-[#e0245e]">{err}</p>}
-            <button
-              type="submit"
-              disabled={busy || !canSubmit}
-              className="mt-3 w-full rounded-xl bg-indigo-600 py-3.5 text-[16px] font-bold text-white shadow-lg shadow-indigo-300/40 transition-colors hover:bg-indigo-700 disabled:opacity-40 disabled:shadow-none"
-            >
-              {busy ? "처리 중…" : mode === "login" ? "로그인" : "가입하고 시작하기"}
-            </button>
-          </form>
-
-          <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-zinc-400">
-            {mode === "signup"
-              ? "이메일로 가입해요. 아이디(닉네임)는 영문/숫자/_/- 3~20자, 비밀번호는 4자 이상."
-              : "이메일 또는 아이디로 로그인할 수 있어요."}
+          <p className="mt-2.5 text-[14.5px] leading-relaxed text-[#5f6b7d]">
+            로그인하면 AI 요약과 종목 분석을
+            <br />
+            바로 이용할 수 있어요.
           </p>
         </div>
 
-        {/* 미리보기 피드 */}
-        <div className="relative min-h-[40vh] flex-1 md:min-h-0">
-          <div className="pointer-events-none absolute inset-0 flex gap-4 overflow-hidden px-6 pb-6 md:pb-0 [mask-image:linear-gradient(to_bottom,transparent,black_8%,black_92%,transparent)]">
-            <div className="h-full w-1/2 overflow-hidden">
-              <div className="marquee-up flex flex-col">
-                {[...colA, ...colA].map((p, i) => (
-                  <PreviewCard key={i} post={p} />
-                ))}
-              </div>
-            </div>
-            <div className="h-full w-1/2 overflow-hidden">
-              <div className="marquee-down flex flex-col">
-                {[...colB, ...colB].map((p, i) => (
-                  <PreviewCard key={i} post={p} />
-                ))}
-              </div>
-            </div>
+        {err && (
+          <div className="mb-4 rounded-xl border border-[#f6465d]/25 bg-[#f6465d]/10 px-4 py-3 text-[13px] leading-relaxed text-[#d32f45]">
+            {err}
           </div>
-        </div>
+        )}
+
+        <a
+          href="/api/auth/google"
+          className="flex items-center justify-center gap-2.5 rounded-xl border border-[#e2e7ef] bg-white py-3.5 text-[15px] font-bold text-[#111725] transition-colors hover:bg-[#f8fafc]"
+        >
+          <GoogleIcon />
+          Google로 로그인
+        </a>
+
+        {!showForm ? (
+          <button
+            onClick={() => setShowForm(true)}
+            className="mt-3 rounded-xl border border-[#e2e7ef] bg-white py-3.5 text-[15px] font-bold text-[#5f6b7d] transition-colors hover:bg-[#f8fafc]"
+          >
+            아이디로 로그인
+          </button>
+        ) : (
+          <>
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-[#eef1f6]" />
+              <span className="text-[12px] text-[#a3adbd]">또는</span>
+              <span className="h-px flex-1 bg-[#eef1f6]" />
+            </div>
+
+            <div className="mb-3 inline-flex w-full rounded-full bg-[#f1f4f9] p-1">
+              {(
+                [
+                  ["login", "로그인"],
+                  ["signup", "회원가입"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setMode(key);
+                    setErr("");
+                  }}
+                  className={`flex-1 rounded-full py-2 text-[14px] font-bold transition-colors ${
+                    mode === key ? "bg-white text-[#111725] shadow-sm" : "text-[#5f6b7d]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={submit} className="space-y-2.5">
+              {mode === "signup" && (
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  type="email"
+                  maxLength={120}
+                  autoComplete="email"
+                  placeholder="이메일"
+                  className={input}
+                />
+              )}
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                maxLength={mode === "login" ? 120 : 20}
+                autoComplete="username"
+                placeholder={mode === "login" ? "아이디 또는 이메일" : "아이디 (닉네임)"}
+                className={input}
+              />
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                maxLength={100}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                placeholder="비밀번호"
+                className={input}
+              />
+              <button
+                type="submit"
+                disabled={busy || !canSubmit}
+                className="w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white transition-transform active:scale-[0.99] disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg,#5b54f0,#18b6e6)" }}
+              >
+                {busy ? "처리 중…" : mode === "login" ? "로그인" : "가입하고 시작하기"}
+              </button>
+            </form>
+
+            {mode === "signup" && (
+              <p className="mt-3 text-[12.5px] leading-relaxed text-[#a3adbd]">
+                아이디는 영문/숫자/_/- 3~20자, 비밀번호는 4자 이상이에요.
+              </p>
+            )}
+          </>
+        )}
+
+        <p className="mt-6 text-center text-[12px] leading-relaxed text-[#a3adbd]">
+          로그인 시{" "}
+          <a href="/terms" className="underline hover:text-[#5f6b7d]">
+            이용약관
+          </a>{" "}
+          및{" "}
+          <a href="/privacy" className="underline hover:text-[#5f6b7d]">
+            개인정보 처리방침
+          </a>
+          에 동의하게 됩니다
+        </p>
       </div>
     </div>
   );
 }
 
-function PreviewCard({
-  post,
-}: {
-  post: { id: string; text: string; trend?: "up" | "down" };
-}) {
-  const s = SOURCE_MAP[post.id];
-  if (!s) return null;
+function GoogleIcon() {
   return (
-    <div className="mb-4 rounded-2xl border border-zinc-200/80 bg-white/85 p-3.5 shadow-sm backdrop-blur-sm">
-      <div className="flex items-center gap-2">
-        <SourceAvatar source={s} size={26} />
-        <span className="text-[13px] font-bold text-zinc-900">{s.name}</span>
-        <span className="truncate text-[12px] text-zinc-400">{s.handle}</span>
-      </div>
-      <p className="mt-2 text-[13.5px] font-medium leading-snug text-zinc-800">
-        {post.text}
-      </p>
-      {post.trend && <Sparkline up={post.trend === "up"} />}
-    </div>
-  );
-}
-
-function Sparkline({ up }: { up: boolean }) {
-  const color = up ? "#14c38e" : "#f6465d";
-  const d = up
-    ? "0 26 18 20 34 23 52 12 70 15 88 5 106 8"
-    : "0 6 18 12 34 9 52 18 70 15 88 24 106 22";
-  return (
-    <div className="mt-2.5 flex items-center gap-2">
-      <svg width="106" height="30" viewBox="0 0 106 30" fill="none">
-        <polyline points={d} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <span className="text-[12px] font-bold" style={{ color }}>
-        {up ? "▲" : "▼"} {up ? "+2.4%" : "-1.8%"}
-      </span>
-    </div>
+    <svg width="19" height="19" viewBox="0 0 48 48" aria-hidden>
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
   );
 }

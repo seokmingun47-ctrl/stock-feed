@@ -51,6 +51,13 @@ body {
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* 가로 오버플로 차단 — 화면 밖으로 슬라이드하는 fixed 오버레이(리더/시트)나
+     가로 마퀴가 아이폰(사파리)에선 잘려도 삼성 인터넷에선 clip되지 않아
+     "화면이 옆으로 잘리고 꽉 안 차는" 증상이 났다. 루트(html)에서 잘라
+     모든 기기에서 뷰포트에 꽉 맞춘다. */
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* 가로 스크롤 스트립 스크롤바 숨김 */
@@ -94,9 +101,28 @@ body {
 .marquee-down {
   animation: marquee-down 40s linear infinite;
 }
+/* 가로 마퀴(랜딩 언론사 로고 띠).
+   ⚠️ 내용물을 정확히 2벌 넣어야 -50% 지점에서 이음매가 안 보인다. */
+@keyframes marquee-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-left {
+  animation: marquee-left 30s linear infinite;
+  width: max-content;
+}
+/* 마우스를 올리면 멈춰서 어떤 언론사인지 볼 수 있게 */
+.marquee-pause:hover .marquee-left {
+  animation-play-state: paused;
+}
 @media (prefers-reduced-motion: reduce) {
   .marquee-up,
-  .marquee-down {
+  .marquee-down,
+  .marquee-left {
     animation: none;
   }
 }

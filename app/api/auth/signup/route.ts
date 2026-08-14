@@ -8,6 +8,7 @@ import {
   isAdminUsername,
   SESSION_COOKIE,
 } from "@/lib/auth";
+import { SIGNUP_CREDITS } from "@/lib/credits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,11 +71,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { data, error } = await db
+  const base = { username, email, password_hash: hashPassword(password) };
+  // 무료 플랜 초기 크레딧 지급. credits 컬럼이 아직 없으면(마이그레이션 전)
+  // 크레딧 없이 재시도해 가입 자체는 막지 않는다.
+  let { data, error } = await db
     .from("community_users")
-    .insert({ username, email, password_hash: hashPassword(password) })
+    .insert({ ...base, credits: SIGNUP_CREDITS })
     .select("id, username")
     .single();
+  if (error && /credits|column/i.test(error.message ?? "")) {
+    ({ data, error } = await db
+      .from("community_users")
+      .insert(base)
+      .select("id, username")
+      .single());
+  }
   if (error || !data) {
     const reason = /email|column/i.test(error?.message ?? "")
       ? "이메일 가입 DB 설정이 아직 안 됐어요. supabase/email-schema.sql 을 실행해주세요."

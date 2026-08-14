@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { geminiRace } from "@/lib/gemini";
+import { aiText } from "@/lib/textai";
 import { chargeAI } from "@/lib/credits";
 
 export const runtime = "nodejs";
@@ -52,10 +52,10 @@ function parseSummary(raw: string): string[] | null {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  // NVIDIA 또는 Gemini 중 하나만 있으면 동작(aiText가 알아서 고른다)
+  if (!process.env.NVIDIA_API_KEY && !process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      { ok: false, reason: "서버에 GEMINI_API_KEY가 설정되지 않았어요." },
+      { ok: false, reason: "서버에 AI 키가 설정되지 않았어요." },
       { status: 500 },
     );
   }
@@ -85,16 +85,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const requestBody = JSON.stringify({
-    contents: [{ role: "user", parts: [{ text: buildPrompt(title, text) }] }],
-    generationConfig: {
-      temperature: 0.1,
-      responseMimeType: "application/json",
-      maxOutputTokens: 800, // 짧은 불릿이라 출력 상한 → 생성 속도↑
-    },
-  });
-
-  const out = await geminiRace(apiKey, requestBody);
+  // NVIDIA(무료) 우선, 실패 시 Gemini 폴백 — Gemini 한도를 영상 전용으로 아낀다
+  const out = await aiText(buildPrompt(title, text), { json: true, maxTokens: 800 });
   if (!out) {
     await charge.refund?.();
     return NextResponse.json(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { geminiRace } from "@/lib/gemini";
+import { aiFromGeminiBody } from "@/lib/textai";
 import { chargeAI } from "@/lib/credits";
 import { COUNTRY_KO } from "@/lib/econ";
 
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
       maxOutputTokens: 800,
     },
   });
-  const out = await geminiRace(apiKey, requestBody);
+  const out = await aiFromGeminiBody(requestBody);
   if (!out) {
     await charge.refund?.();
     return NextResponse.json(

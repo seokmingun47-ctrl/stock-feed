@@ -1,0 +1,267 @@
+// 기사 본문 추출 파이프라인.
+// /api/article(피드 기사)와 /api/link-summary(사용자가 붙여넣은 링크)가 공유한다.
+// ⚠️ 여기 로직은 실제 언론사 HTML로 오래 다듬은 것 — 임의로 단순화하지 말 것.
+
+export function decode(s: string): string {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;|&#39;/g, "'")
+    // 국내 기사에 자주 섞여 나오는 명명 엔티티 (안 풀면 본문에 &ldquo; 처럼 그대로 노출)
+    .replace(/&ldquo;|&rdquo;/g, '"')
+    .replace(/&lsquo;|&rsquo;/g, "'")
+    .replace(/&middot;/g, "·")
+    .replace(/&hellip;/g, "…")
+    .replace(/&ndash;/g, "–")
+    .replace(/&mdash;/g, "—")
+    .replace(/&bull;/g, "•")
+    .replace(/&times;/g, "×")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+export function meta(html: string, prop: string): string {
+  const re = new RegExp(
+    `<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`,
+    "i",
+  );
+  const m = html.match(re);
+  return m ? decode(m[1]) : "";
+}
+
+const JUNK =
+  /cookie|subscribe|newsletter|sign up|sign in|©|all rights reserved|terms of|privacy policy|무단[ ]?전재|재배포 금지|저작권자|구독하기|기자\s*$|@[\w.-]+\.(?:com|co\.kr)/i;
+
+function clean(t: string): string {
+  return decode(t.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+}
+
+function dedupe(ps: string[]): string[] {
+  const out: string[] = [];
+  for (const p of ps)
+    if (p.length > 30 && !JUNK.test(p) && out[out.length - 1] !== p) out.push(p);
+  return out;
+}
+
+function totalLen(ps: string[]): number {
+  return ps.reduce((a, p) => a + p.length, 0);
+}
+
+// 문자열 리터럴을 고려해 start 위치의 { } JSON 객체를 정확히 잘라냄
+function sliceJsonObject(s: string, start: number): string | null {
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) return s.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+// Arc XP(조선비즈 등): window.Fusion.globalContent.content_elements에서 본문 추출
+function fusionParas(html: string): string[] {
+  const key = "Fusion.globalContent";
+  const i = html.indexOf(key);
+  if (i < 0) return [];
+  const eq = html.indexOf("=", i);
+  const brace = eq >= 0 ? html.indexOf("{", eq) : -1;
+  if (brace < 0) return [];
+  const json = sliceJsonObject(html, brace);
+  if (!json) return [];
+  try {
+    const gc = JSON.parse(json) as { content_elements?: Array<Record<string, unknown>> };
+    const els = gc.content_elements || [];
+    const out: string[] = [];
+    for (const e of els) {
+      if ((e.type === "text" || e.type === "header") && typeof e.content === "string") {
+        out.push(clean(e.content));
+      }
+    }
+    return dedupe(out);
+  } catch {
+    return [];
+  }
+}
+
+// 블록/<br> 단위로 텍스트를 문단으로 쪼갬 (div+<br> 본문용)
+function blockParas(htmlChunk: string): string[] {
+  const lines = htmlChunk
+    .replace(/<(?:script|style)[\s\S]*?<\/(?:script|style)>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|li|h[1-6]|figcaption|blockquote)>/gi, "\n")
+    .split(/\n+/)
+    .map(clean);
+  return dedupe(lines.filter((t) => t.length > 30));
+}
+
+// 사이트 슬로건·구독 유도·페이월·AI안내 등은 본문이 아님 (번역 전 원문 기준으로 거름)
+const BOILERPLATE = [
+  // ── 해외 ──
+  /^covering the business and politics of space$/i,
+  /enter the code sent to your email/i,
+  /we('|’)?ll send a verification code/i,
+  /register (now )?to (get|read)/i,
+  /free article[s]? (left|this month|remaining)/i,
+  /to get \d+ more free article/i,
+  /unlimited access to/i,
+  /cancel anytime/i,
+  /sales tax may apply/i,
+  /non-?refundable/i,
+  /terms of service apply/i,
+  /subscribe to (continue|read|keep reading)/i,
+  /already a (subscriber|member)\?/i,
+  /sign up for (our )?newsletter/i,
+  /this article is (for|available to) subscribers/i,
+  /follow us on (twitter|x|facebook)/i,
+  /all rights reserved/i,
+  // ── 국내 (한경·매경 등 광고/AI/구독 유도) ──
+  /검색에서 .{0,20}기사를 더 자주 볼 수 있습니다/,
+  /머릿속에 맴돌던 질문|앨리스가 대답/,
+  /투자 권유·자문·추천에 해당하지 않습니다/,
+  /월 \d+회 제공되며 매월 \d+일 초기화/,
+  /프리미엄\d*와 함께|프리미엄\d*까지 함께 이용/,
+  /지금 바로 경험하고|경품 및 혜택을 확인/,
+  /함께해 주셔서 진심으로 감사합니다/,
+  /선납 및 자동이체 결제/,
+  /구독\s*(신청|문의|하기)/,
+  /무단\s*(전재|복제|배포)|재배포\s*금지/,
+  /저작권자\s*[ⓒ©]/,
+  /^[ⓒ©]\s*\S+/,
+  /기자\s*$|기자\s*[a-z0-9._%+-]+@/i,
+  /^\S+@\S+\.\S+$/, // 이메일만 있는 줄
+  /뉴스레터\s*(구독|신청)/,
+  /^(사진|자료)\s*=|^\[?사진\s*제공/,
+  /카카오톡\s*채널|네이버\s*구독/,
+];
+
+// 링크 목록만 잔뜩 붙은 줄(푸터 메뉴 등)도 본문이 아님
+function looksLikeLinkDump(p: string): boolean {
+  const urls = (p.match(/https?:\/\//g) || []).length;
+  if (urls >= 2) return true; // 한 문단에 링크 2개 이상 = 메뉴/푸터
+  if (urls >= 1 && p.replace(/https?:\/\/\S+/g, "").trim().length < 20) return true;
+  if (/href\s*=/.test(p)) return true; // 마크업이 그대로 새어나온 경우
+  return false;
+}
+
+// 스크립트/스타일 조각이 문단으로 새어나온 경우
+function looksLikeCode(p: string): boolean {
+  return (
+    /\$\(['"`.#]/.test(p) || // jQuery
+    /function\s*\(|=>\s*\{|addEventListener|document\./.test(p) ||
+    /\{[^}]*:[^}]*;[^}]*\}/.test(p) || // CSS 블록
+    /^(var|let|const|if|for|window|gtag|dataLayer)\b/.test(p)
+  );
+}
+
+// 기사 본문이 끝난 뒤 붙는 '관련기사/인기기사 헤드라인 목록'을 잘라낸다.
+// 특징: 짧고(≈60자 이하) 마침표로 안 끝나는 제목형 문장이 연달아 나온다.
+function looksLikeHeadline(p: string): boolean {
+  if (p.length > 70) return false;
+  if (/[.。]$/.test(p.trim())) return false; // 완결된 문장은 본문일 가능성
+  // 제목에 흔한 기호들
+  return /[…‘’“”"'\[\]]|\.\.\.$|[?!]$|^\[/.test(p) || p.length <= 45;
+}
+
+export function isBoilerplate(p: string): boolean {
+  if (looksLikeLinkDump(p)) return true;
+  if (looksLikeCode(p)) return true;
+  return BOILERPLATE.some((re) => re.test(p));
+}
+
+// 기사 본문 뒤에 붙는 '관련기사' 블록을 잘라낸다. 두 가지 형태를 잡는다.
+//  A) 헤드라인만 나열      → 짧고 마침표 없는 문장이 연속
+//  B) 헤드라인+요약 쌍 반복 → (짧고 마침표X) 다음에 (요약) 이 2회 이상 반복  ← 한국경제
+export function trimTrailingHeadlines(paras: string[]): string[] {
+  const MIN_KEEP = 3;
+
+  // B) 제목/요약 쌍 패턴. 쌍의 시작이 짝수/홀수 인덱스 어느 쪽인지 모르므로 둘 다 시도.
+  // 제목: 짧고 마침표로 안 끝남 / 요약: 마침표로 끝나는 서술문.
+  // (길이 임계값은 매체마다 달라 신뢰할 수 없어 '마침표 유무'를 주 신호로 쓴다)
+  const isPairAt = (i: number) => {
+    const head = paras[i];
+    const body = paras[i + 1];
+    if (!head || !body) return false;
+    const headIsTitle = head.length <= 60 && !/[.。]$/.test(head.trim());
+    const bodyIsSentence = /[.。]$/.test(body.trim()) && body.length >= 25;
+    return headIsTitle && bodyIsSentence;
+  };
+  // 끝에서부터 훑으면 관련기사 뒤에 붙은 잡동사니(저작권 등) 때문에 스캔이 바로 끊긴다.
+  // → 앞에서부터 훑어 '쌍이 2번 연속' 시작되는 지점을 찾아 거기서 자른다.
+  for (let i = MIN_KEEP; i + 3 < paras.length; i++) {
+    if (isPairAt(i) && isPairAt(i + 2)) return paras.slice(0, i);
+  }
+
+  // A) 헤드라인 연속
+  const RUN = 3;
+  let cut = paras.length;
+  let run = 0;
+  for (let i = paras.length - 1; i >= 0; i--) {
+    if (looksLikeHeadline(paras[i])) {
+      run++;
+      if (run >= RUN) cut = i;
+    } else {
+      if (run >= RUN) break;
+      run = 0;
+    }
+  }
+  return cut >= MIN_KEEP ? paras.slice(0, cut) : paras;
+}
+
+export function extractParagraphs(html: string): string[] {
+  // 1) JSON-LD articleBody 우선
+  const ld = [...html.matchAll(
+    /<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi,
+  )];
+  let best = "";
+  for (const m of ld) {
+    try {
+      const j = JSON.parse(m[1].trim());
+      const arr = Array.isArray(j) ? j : j["@graph"] ? j["@graph"] : [j];
+      for (const o of arr) {
+        if (o && typeof o.articleBody === "string" && o.articleBody.length > best.length)
+          best = o.articleBody;
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  const candidates: string[][] = [];
+  if (best.length > 200)
+    candidates.push(dedupe(best.split(/\n+/).map((p) => p.trim())));
+
+  // 2) Arc XP Fusion 본문 (조선비즈 등 JS 렌더 사이트)
+  candidates.push(fusionParas(html));
+
+  // 3) <p> 태그 추출
+  candidates.push(
+    dedupe([...html.matchAll(/<p[ >][\s\S]*?<\/p>/gi)].map((x) => clean(x[0]))),
+  );
+
+  // 4) itemprop=articleBody 컨테이너의 블록/<br> 텍스트 (edaily 등 div 본문)
+  //    여는 태그 끝(>) 다음부터 잘라야 속성 텍스트가 안 섞임
+  const idx = html.search(/itemprop=["']articleBody["']/i);
+  if (idx >= 0) {
+    const gt = html.indexOf(">", idx);
+    if (gt >= 0) candidates.push(blockParas(html.slice(gt + 1, gt + 1 + 40000)));
+  }
+
+  // 본문을 가장 많이 건진 방식 채택
+  return candidates.reduce(
+    (bestPs, ps) => (totalLen(ps) > totalLen(bestPs) ? ps : bestPs),
+    [] as string[],
+  );
+}
+
