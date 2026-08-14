@@ -15,14 +15,13 @@ interface Sub {
   next_charge_at: string;
   amount: number;
 }
-// 자동결제(빌링)는 'API 개별 연동 키'(test_ck_/live_ck_)를 쓰고, 그 키는 v1 SDK로
-// 연동한다. v2/standard는 주문서형·결제창형 키(test_gck_) 전용이라 개별 연동 키를
-// 넣으면 NOT_SUPPORTED_WIDGET_KEY로 거절된다.
+// 자동결제(빌링)는 v2 SDK로 연동한다. v1은 토스가 지원 종료를 공지했다.
+// 클라이언트 키는 'API 개별 연동 키'를 쓴다 — 그 키의 시크릿 키만 빌링 API에서
+// 정상 응답하고, 주문서형 문서용 키는 NOT_FOUND_MERCHANT로 거절된다.
 interface TossInstance {
-  requestBillingAuth(
-    method: string,
-    options: Record<string, unknown>,
-  ): Promise<void>;
+  payment(o: { customerKey: string }): {
+    requestBillingAuth(o: Record<string, unknown>): Promise<void>;
+  };
 }
 
 function loadToss(): Promise<(key: string) => TossInstance> {
@@ -30,7 +29,7 @@ function loadToss(): Promise<(key: string) => TossInstance> {
     const w = window as unknown as { TossPayments?: (k: string) => TossInstance };
     if (w.TossPayments) return resolve(w.TossPayments);
     const s = document.createElement("script");
-    s.src = "https://js.tosspayments.com/v1/payment";
+    s.src = "https://js.tosspayments.com/v2/standard";
     s.onload = () => (w.TossPayments ? resolve(w.TossPayments) : reject(new Error("no sdk")));
     s.onerror = () => reject(new Error("sdk load fail"));
     document.head.appendChild(s);
@@ -81,8 +80,9 @@ export default function CheckoutPage() {
     try {
       const TossPayments = await loadToss();
       const toss = TossPayments(TOSS_CLIENT_KEY);
-      await toss.requestBillingAuth("카드", {
-        customerKey: `user_${me.id}`,
+      const payment = toss.payment({ customerKey: `user_${me.id}` });
+      await payment.requestBillingAuth({
+        method: "CARD",
         successUrl: `${window.location.origin}/checkout/billing-success`,
         failUrl: `${window.location.origin}/checkout/fail`,
         customerName: me.username,
