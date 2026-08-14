@@ -28,6 +28,7 @@ import { AI_MAP, type AiApp } from "@/lib/ai";
 import { getStoredTheme, applyTheme, type Theme } from "@/lib/theme";
 import AdminUsers, { type Signup } from "@/components/AdminUsers";
 import AdminReports from "@/components/AdminReports";
+import AdminDashboard from "@/components/AdminDashboard";
 import { LogoMark } from "@/components/Logo";
 import { timeAgo } from "@/lib/format";
 import {
@@ -124,6 +125,7 @@ export default function Feed({
   const [adminUsers, setAdminUsers] = useState<Signup[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [dashOpen, setDashOpen] = useState(false);
   const [adminSeen, setAdminSeen] = useState(0);
   const trRef = useRef(initialTranslate); // fetchFeed가 최신 값을 읽도록
   const first = useRef(true);
@@ -909,6 +911,10 @@ export default function Feed({
           onRequireLogin={onRequireLogin}
           isAdmin={user.isAdmin}
           adminNew={adminNew}
+          onOpenDashboard={() => {
+            setManage(false);
+            setDashOpen(true);
+          }}
           onOpenAdmin={openAdmin}
           onOpenReports={() => {
             setManage(false);
@@ -921,6 +927,20 @@ export default function Feed({
         <AdminUsers users={adminUsers} onClose={() => setAdminOpen(false)} />
       )}
       {reportsOpen && <AdminReports onClose={() => setReportsOpen(false)} />}
+
+      {dashOpen && (
+        <AdminDashboard
+          onClose={() => setDashOpen(false)}
+          onOpenUsers={() => {
+            setDashOpen(false);
+            openAdmin();
+          }}
+          onOpenReports={() => {
+            setDashOpen(false);
+            setReportsOpen(true);
+          }}
+        />
+      )}
 
       {aiChat && <AiChat app={aiChat} onClose={() => setAiChat(null)} />}
 
