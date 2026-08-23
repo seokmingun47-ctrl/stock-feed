@@ -1,12 +1,18 @@
-// 영문 뉴스 → 한국어 번역 (구글 무료 엔드포인트, 키 불필요).
-// 핵심 최적화: 번역 결과를 메모리에 캐시 → 같은 기사 제목이 매 새로고침마다
-// 반복되므로, 매 요청에서 "새로 등장한 텍스트"만 번역한다.
+// 영문 뉴스 → 한국어 번역.
+//
+// 예전에는 구글 무료 엔드포인트(translate_a/single)를 썼는데, 지금은 봇으로 막혀
+// "Sorry..." HTML 을 돌려줍니다. 실패하면 원문을 그대로 두는 구조라 영어 제목이
+// 조용히 남아 있었습니다. 그래서 이미 쓰고 있는 Gemini 로 옮겼습니다.
+//
+// 핵심 최적화는 그대로입니다. 번역 결과를 메모리에 캐시해서, 매 요청에서
+// "새로 등장한 텍스트"만 번역합니다.
+
+import { geminiRace } from "./gemini";
 
 const memo = new Map<string, string>(); // 원문 → 한국어
 const MAX_MEMO = 6000;
 
 function clean(t: string): string {
-  // 줄바꿈을 구분자로 쓰므로 내부 개행/공백은 단일 공백으로
   return t.replace(/\s+/g, " ").trim();
 }
 
@@ -16,41 +22,55 @@ function looksEnglish(t: string): boolean {
   return ascii >= 2 && !/[가-힣]/.test(t);
 }
 
-// 한 번 호출. 성공하면 번역 배열, 실패/경계불일치면 null.
-async function gtxRaw(texts: string[]): Promise<string[] | null> {
-  const q = texts.join("\n");
-  const url =
-    "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=" +
-    encodeURIComponent(q);
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 6000);
-  try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as [Array<[string, ...unknown[]]>];
-    const segs = data[0];
-    if (!Array.isArray(segs)) return null;
-    const full = segs.map((s) => (s && s[0]) || "").join("");
-    const out = full.split("\n");
-    // 경계가 어긋나면(번역기가 줄을 합치거나 나눔) 실패로 간주 → 호출부가 분할 재시도
-    if (out.length !== texts.length) return null;
-    return out.map((s, i) => s.trim() || texts[i]);
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+const PROMPT = [
+  "다음은 증권·경제 뉴스의 제목이나 요약입니다. 각 줄을 한국어로 번역하세요.",
+  "",
+  "규칙:",
+  "- 입력과 똑같은 번호를 붙여 같은 줄 수로 출력합니다.",
+  "- 번역문만 출력합니다. 설명·따옴표·원문 병기 금지.",
+  "- 기업명·인명·티커는 국내 언론에서 쓰는 표기를 따르고, 애매하면 원문을 그대로 둡니다.",
+  "- 뉴스 제목투로 간결하게 옮깁니다.",
+].join("\n");
+
+/**
+ * 한 묶음 번역. 성공하면 번역 배열, 실패하면 null.
+ *
+ * 줄바꿈만으로 자르면 번역기가 줄을 합치거나 나눌 때 순서가 어긋납니다.
+ * 그래서 번호를 붙여 보내고 번호로 되찾습니다.
+ */
+async function translateRaw(texts: string[]): Promise<string[] | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+
+  const numbered = texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: `${PROMPT}\n\n${numbered}` }] }],
+    generationConfig: { temperature: 0, maxOutputTokens: 8000 },
+  });
+
+  const out = await geminiRace(key, body);
+  if (!out) return null;
+
+  // "3. 금리가 다시 주목받는다" 같은 줄에서 번호와 본문을 분리
+  const found = new Map<number, string>();
+  for (const line of out.split("\n")) {
+    const m = line.match(/^\s*(\d+)\s*[.)]\s*(.+)$/);
+    if (!m) continue;
+    const idx = Number(m[1]) - 1;
+    const text = m[2].trim();
+    if (idx >= 0 && idx < texts.length && text) found.set(idx, text);
   }
+  if (found.size === 0) return null;
+
+  // 일부만 돌아와도 그 줄만 번역으로 채우고 나머지는 원문을 씁니다.
+  return texts.map((t, i) => found.get(i) ?? t);
 }
 
-// 청크 번역. 실패하면 반으로 쪼개 재귀 재시도(끝까지 가면 개별 번역).
-// 한 문장이 경계 문제를 일으켜도 그 문장만 원문 유지되고 나머지는 번역됨.
+// 실패하면 반으로 쪼개 재시도. 한 문장이 문제를 일으켜도 나머지는 살립니다.
 async function translateChunk(texts: string[]): Promise<string[]> {
-  const r = await gtxRaw(texts);
+  const r = await translateRaw(texts);
   if (r) return r;
-  if (texts.length <= 1) return texts; // 단일 문장도 실패 → 원문 유지
+  if (texts.length <= 1) return texts;
   const mid = Math.floor(texts.length / 2);
   const [a, b] = await Promise.all([
     translateChunk(texts.slice(0, mid)),
@@ -68,13 +88,13 @@ export async function translateMany(rawTexts: string[]): Promise<string[]> {
     if (t && looksEnglish(t) && !memo.has(t)) need.add(t);
   }
 
-  // URL 길이 한도를 고려해 ~1200자 단위로 청크
+  // 한 번에 보낼 묶음. POST 본문이라 예전 URL 방식보다 넉넉하게 잡습니다.
   const unique = [...need];
   const chunks: string[][] = [];
   let cur: string[] = [];
   let len = 0;
   for (const t of unique) {
-    if (len + t.length > 1200 && cur.length) {
+    if ((len + t.length > 4000 || cur.length >= 40) && cur.length) {
       chunks.push(cur);
       cur = [];
       len = 0;
@@ -84,8 +104,7 @@ export async function translateMany(rawTexts: string[]): Promise<string[]> {
   }
   if (cur.length) chunks.push(cur);
 
-  // Google 무료 엔드포인트 차단(429) 방지 위해 동시 5개로 제한
-  const CONC = 5;
+  const CONC = 4;
   for (let i = 0; i < chunks.length; i += CONC) {
     const batch = chunks.slice(i, i + CONC);
     const results = await Promise.all(batch.map((c) => translateChunk(c)));
@@ -93,7 +112,7 @@ export async function translateMany(rawTexts: string[]): Promise<string[]> {
       const r = results[bi];
       c.forEach((orig, ci) => {
         const t = r[ci];
-        // 실제로 번역된 경우만 캐시 — 실패분(원문 그대로)은 다음에 재시도
+        // 실제로 번역된 것만 캐시 — 실패분(원문 그대로)은 다음에 재시도
         if (t && t !== orig) memo.set(orig, t);
       });
     });
@@ -108,6 +127,5 @@ export async function translateMany(rawTexts: string[]): Promise<string[]> {
     }
   }
 
-  // 원문 순서대로 번역 결과 매핑 (영문 아니거나 실패 시 원문 그대로)
   return texts.map((t) => (t && memo.has(t) ? (memo.get(t) as string) : t));
 }
