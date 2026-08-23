@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ ok: true, credits: null, isPro: false, unlimited: false });
   }
-  // 관리자는 무제한 → 잔액 조회 없이 표시만
-  if (user.isAdmin) {
+  // 관리자·프로는 무제한(chargeAI에서 차감하지 않음) → 잔액 조회 없이 표시만.
+  // 여기서 unlimited를 안 내려주면 UI가 잔액 숫자와 "1회에 25" 안내를 띄워
+  // 실제 동작(무제한)과 어긋난다.
+  if (user.isAdmin || user.isPro) {
     return NextResponse.json({ ok: true, credits: null, isPro: true, unlimited: true });
   }
   const db = getAdminClient();

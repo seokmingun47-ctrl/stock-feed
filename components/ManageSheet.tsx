@@ -177,7 +177,7 @@ export default function ManageSheet({
                 </div>
                 <div className="text-[11.5px] text-muted">
                   {creditsUnlimited
-                    ? "관리자 계정은 차감 없이 사용해요"
+                    ? "프로·관리자는 차감 없이 마음껏 쓸 수 있어요"
                     : "요약·종목분석·시장분석 1회에 25"}
                 </div>
               </div>
