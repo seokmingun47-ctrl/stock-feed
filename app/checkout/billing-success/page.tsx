@@ -33,7 +33,13 @@ export default function BillingSuccessPage() {
           setStatus("ok");
         } else {
           setStatus("fail");
-          setMsg(d.reason || "결제 등록에 실패했어요.");
+          // 토스가 준 코드까지 같이 보여준다. 메시지만으로는 원인을 못 좁힌다.
+          console.error("[billing] confirm 실패", d);
+          setMsg(
+            d.code
+              ? `${d.reason || "결제 등록에 실패했어요."} (${d.code})`
+              : d.reason || "결제 등록에 실패했어요.",
+          );
         }
       })
       .catch(() => {
