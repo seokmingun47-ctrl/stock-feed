@@ -108,18 +108,9 @@ function lookupGlossary(en: string): string | null {
 }
 
 // 국가(통화코드) → 한국어
-export const COUNTRY_KO: Record<string, string> = {
-  USD: "미국",
-  EUR: "유로존",
-  JPY: "일본",
-  GBP: "영국",
-  CNY: "중국",
-  KRW: "한국",
-  AUD: "호주",
-  CAD: "캐나다",
-  CHF: "스위스",
-  NZD: "뉴질랜드",
-};
+// 표기 테이블은 econ-const.ts 로 옮겼다 — 클라이언트가 이 파일(서버 전용 번역
+// 모듈을 끌고 온다)을 import 하지 않도록. 서버 쪽 기존 import 는 그대로 쓰도록 재수출.
+export { COUNTRY_KO } from "./econ-const";
 
 // FMP 국가코드 → 통화코드(FF와 표기 통일)
 const FMP_COUNTRY: Record<string, string> = {

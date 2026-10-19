@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { COUNTRY_KO } from "@/lib/econ";
+import { COUNTRY_KO } from "@/lib/econ-const";
 import { handleNoCredits } from "@/lib/nocredits";
 
 interface EconEvent {

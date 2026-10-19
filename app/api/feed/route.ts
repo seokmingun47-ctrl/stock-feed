@@ -64,14 +64,17 @@ export async function GET(req: NextRequest) {
     return langKo && s.region === "global";
   });
   if (targets.length) {
-    const texts: string[] = [];
-    for (const a of targets) texts.push(a.title, a.summary || "");
-    const tr = await translateMany(texts);
-    let i = 0;
-    for (const a of targets) {
-      a.title = tr[i++] || a.title;
-      a.summary = tr[i++] || a.summary;
-    }
+    // 제목을 전부 앞에 몰아서 보낸다 — 시간이 모자라 뒤쪽이 밀리더라도
+    // 요약보다 제목이 먼저 한국어가 되어야 목록이 읽힌다.
+    const n = targets.length;
+    const tr = await translateMany([
+      ...targets.map((a) => a.title),
+      ...targets.map((a) => a.summary || ""),
+    ]);
+    targets.forEach((a, i) => {
+      a.title = tr[i] || a.title;
+      a.summary = tr[n + i] || a.summary;
+    });
   }
 
   return NextResponse.json(

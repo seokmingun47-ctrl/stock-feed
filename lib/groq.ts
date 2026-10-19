@@ -13,9 +13,11 @@ export interface GroqMsg {
 }
 
 // messages(시스템 포함)로 Llama 답변 텍스트 반환. 실패 시 null.
+// 번역처럼 긴 출력이 필요하거나 창의성이 해로운 작업은 opts 로 조절한다.
 export async function groqChat(
   apiKey: string,
   messages: GroqMsg[],
+  opts: { maxTokens?: number; temperature?: number } = {},
 ): Promise<string | null> {
   for (const model of GROQ_MODELS) {
     const ac = new AbortController();
@@ -30,8 +32,8 @@ export async function groqChat(
         body: JSON.stringify({
           model,
           messages,
-          temperature: 0.7,
-          max_tokens: 1400,
+          temperature: opts.temperature ?? 0.7,
+          max_tokens: opts.maxTokens ?? 1400,
         }),
         signal: ac.signal,
       });
